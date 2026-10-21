@@ -1,0 +1,49 @@
+# Dados locais: listas de referência, planilhas, base da Receita, banco, backups, exports, logs
+data/
+*.db
+*.sqlite
+*.sqlite3
+*-wal
+*-shm
+*-journal
+backups/
+exports/
+logs/
+*.log
+
+# Segredos
+.env
+.env.*
+!.env.example
+*.pem
+*.pfx
+*.p12
+
+# Arquivos de entrada do Paulo (proteção extra caso fiquem fora de data/)
+clientes*.txt
+clientes*.xlsx
+*.xlsx
+*.xls
+*.csv
+!tests/fixtures/**/*.csv
+
+# Build / Python
+dist/
+build/
+*.spec.bak
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Sistema / editores
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
