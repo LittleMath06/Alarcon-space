@@ -83,7 +83,7 @@ progress { flex: 1; height: 1.25rem; accent-color: var(--verde); }
 .tabela { width: 100%; border-collapse: collapse; margin-top: .5rem; font-size: .9rem; }
 .tabela th, .tabela td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--borda); }
 .tabela .num { text-align: right; font-variant-numeric: tabular-nums; }
-.tabela.compacta { max-width: 320px; }
+.tabela.compacta { max-width: 320px; margin-bottom: 1.5rem; }
 details { margin-top: 1rem; }
 summary { cursor: pointer; font-weight: 600; }
 fieldset { border: 1px solid var(--borda); border-radius: 6px; padding: .75rem 1rem; display: flex; flex-direction: column; gap: .5rem; }

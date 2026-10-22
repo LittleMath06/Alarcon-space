@@ -52,7 +52,7 @@
         <dt>Linhas com estrutura inválida</dt><dd>{{ numero(r.linhas_invalidas) }}</dd>
         <dt>Caracteres ilegíveis substituídos</dt><dd>{{ numero(r.caracteres_trocados) }}</dd>
         {% if r.cnaes_do_filtro_inexistentes %}<dt>CNAEs do filtro inexistentes</dt><dd class="texto-erro">{{ r.cnaes_do_filtro_inexistentes | join(", ") }}</dd>{% endif %}
-        {% if r.tempos_s %}<dt>Tempo por etapa</dt><dd>{% for k, v in r.tempos_s.items() %}{{ k }}: {{ (v / 60) | round(1) }} min{% if not loop.last %} · {% endif %}{% endfor %}</dd>{% endif %}
+        {% if r.tempos_s %}<dt>Tempo por etapa</dt><dd>{% for k, v in r.tempos_s.items() %}{{ nomes_etapas.get(k, k) }}: {{ (v / 60) | round(1) }} min{% if not loop.last %} · {% endif %}{% endfor %}</dd>{% endif %}
       </dl>
     {% endif %}
     <details>

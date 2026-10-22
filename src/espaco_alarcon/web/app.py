@@ -229,6 +229,7 @@ def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
             "ativo": "fontes", "sessao": sessao, "status": importar_receita.status_receita(conn),
             "rodando": rodando, "config": config, "msg": msg,
             "caminho_log": str(cfg.log_dir / "importacao-receita.log"),
+            "nomes_etapas": importar_receita.NOMES_ETAPAS,
         })
 
     @app.post("/fontes/receita/importar")
