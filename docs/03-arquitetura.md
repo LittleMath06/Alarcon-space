@@ -102,3 +102,21 @@ Get-PSDrive C | Select-Object Used, Free
 - **Conexão SQLite por requisição** (o arquivo é local; abrir é barato e evita compartilhar conexão entre threads).
 - **Porta padrão 8765**, sobrescrevível por `ESPACO_ALARCON_PORTA`.
 - **Modo LAN** lido da tabela `configuracao` (`lan_ativo = 1` → escuta em `0.0.0.0`). Tela para ativar: Sprint 8.
+
+## 8. Decisões da Sprint 2a — importação da Receita
+
+- **Processo separado** (`python -m espaco_alarcon importar-receita`), disparado pela tela *Status das fontes*.
+  O servidor web continua respondendo durante a importação (SQLite WAL: leitores não bloqueiam o escritor).
+- **Trava exclusiva de arquivo** (`DATA_DIR\receita\importacao.lock`, `msvcrt.locking` no Windows / `flock` no Linux):
+  impede duas importações simultâneas e se solta sozinha se o processo morrer.
+- **Ordem:** download → auxiliares → passada 1 (Estabelecimentos) → Empresas → Simples → limpeza de MEI → Sócios →
+  finalização (remove estabelecimentos que não vieram nesta competência e órfãos).
+- **Retomada:** cada lote de 5.000 linhas é gravado na mesma transação que atualiza `receita_arquivo.linhas_lidas`;
+  ao reiniciar, o arquivo é relido pulando as linhas já processadas. Uma importação `em_andamento` ou `falhou` é
+  retomada; outra competência cancela a anterior.
+- **Downloads** em `DATA_DIR\receita\<competência>\` com `.part` + `Range`; tamanho conferido com `Content-Length`;
+  espaço livre exigido = falta baixar + 5 GB. ZIPs apagados ao concluir (configurável).
+- **Fonte:** oficial por padrão; espelho só por escolha explícita, registrado em `receita_importacao.origem`.
+- **CNAEs do estabelecimento:** gravados todos (principal + secundários) em `estabelecimento_cnae`, não só os do filtro —
+  servem ao perfil ideal e ao índice (Sprint 4).
+- **Sócios** são recarregados por completo a cada competência (não têm chave natural estável).
