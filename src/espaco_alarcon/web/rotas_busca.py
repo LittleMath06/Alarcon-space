@@ -14,6 +14,8 @@ from espaco_alarcon.domain.contatos import AREAS, SITUACOES_IE
 from espaco_alarcon.domain.empresas import carregar_ficha, formatar_cnae
 
 IE_STATUS = {**SITUACOES_IE, "nao_consultado": "Não consultado"}
+LEAD_STATUS = {"nao_salvo": "Ainda não salvas", "salvo": "Leads salvos", "cliente": "Clientes confirmados",
+               "descartado": "Descartados"}
 
 
 def _int(valor: str | None, padrao: int | None = None) -> int | None:
@@ -42,6 +44,7 @@ def filtros_da_requisicao(request: Request) -> busca.Filtros:
         com_site=q.get("com_site") == "1",
         ie_status=q.get("ie_status", "") if q.get("ie_status", "") in IE_STATUS else "",
         incluir_nao_contatar=q.get("incluir_nao_contatar") == "1",
+        lead_status=q.get("lead_status", "") if q.get("lead_status", "") in LEAD_STATUS else "",
         indice_minimo=max(0, min(100, _int(q.get("indice_minimo")) or 0)) or None,
         linha_segmento=_int(q.get("linha_segmento")),
         ordem=q.get("ordem", "indice") if q.get("ordem", "indice") in busca.ORDENACOES else "indice",
@@ -71,7 +74,10 @@ def registrar(app: FastAPI, web) -> None:
             "segmentos": conn.execute("SELECT id, nome, linha_produto FROM segmento ORDER BY ordem").fetchall(),
             "regioes": busca.REGIOES, "ufs": busca.UFS, "portes": busca.PORTES, "ordenacoes": busca.ORDENACOES,
             "municipios": municipios, "link_pagina": link_pagina, "formatar_cnae": formatar_cnae,
-            "areas": AREAS[1:], "ie_status": IE_STATUS,
+            "areas": AREAS[1:], "ie_status": IE_STATUS, "lead_status": LEAD_STATUS,
+            "url_atual": str(request.url.path) + ("?" + str(request.url.query) if request.url.query else ""),
+            "query_exportar": urllib.parse.urlencode([(k, v) for k, v in request.query_params.multi_items()
+                                                      if k not in ("pagina", "formato")]),
         })
 
     @app.get("/empresa/{cnpj}", response_class=HTMLResponse)
@@ -82,7 +88,10 @@ def registrar(app: FastAPI, web) -> None:
         if ficha is None:
             raise HTTPException(404, "Empresa não encontrada na base importada.")
         from espaco_alarcon.domain import contatos as ct
+        from espaco_alarcon.domain import leads as lds
+        ficha["lead"] = lds.do_estabelecimento(conn, ficha["cnpj"])
         return web.render(request, "empresa.html", {
+            "etapas": lds.etapas(conn),
             "ativo": "busca", "sessao": sessao, "e": ficha, "voltar": request.headers.get("referer", ""),
             "msg": request.query_params.get("msg", ""), "detalhe": request.query_params.get("detalhe", ""),
             "areas": ct.AREAS[1:], "tipos": ct.TIPOS, "situacoes_ie": ct.SITUACOES_IE,

@@ -50,6 +50,7 @@ class Filtros:
     area_contato: str = ""             # ex.: "Compras/Suprimentos" (contatos do site ou manuais)
     com_site: bool = False
     ie_status: str = ""                # habilitado | nao_habilitado | nao_localizado | nao_consultado
+    lead_status: str = ""              # "" (todos menos descartados) | nao_salvo | salvo | descartado | cliente
     incluir_nao_contatar: bool = False
     indice_minimo: int | None = None
     linha_segmento: int | None = None  # segmento que define a linha de produto sugerida
@@ -59,7 +60,7 @@ class Filtros:
     def ativo(self) -> bool:
         return any([self.q, self.regiao, self.uf, self.municipio, self.segmento, self.cnae, self.porte,
                     self.com_email, self.com_telefone, self.so_matriz, self.indice_minimo, self.linha_segmento,
-                    self.area_contato, self.com_site, self.ie_status])
+                    self.area_contato, self.com_site, self.ie_status, self.lead_status])
 
 
 @dataclass
@@ -149,6 +150,16 @@ def _where(conn: sqlite3.Connection, f: Filtros, tem_indice: bool) -> tuple[list
     elif f.ie_status in ("habilitado", "nao_habilitado", "nao_localizado"):
         cond.append("e.cnpj IN (SELECT cnpj FROM info_fiscal WHERE situacao = ?)")
         params.append(f.ie_status)
+    if f.lead_status == "nao_salvo":
+        cond.append("e.cnpj NOT IN (SELECT cnpj FROM lead)")
+    elif f.lead_status == "salvo":
+        cond.append("e.cnpj IN (SELECT cnpj FROM lead WHERE descartado = 0)")
+    elif f.lead_status == "descartado":
+        cond.append("e.cnpj IN (SELECT cnpj FROM lead WHERE descartado = 1)")
+    elif f.lead_status == "cliente":
+        cond.append("e.cnpj IN (SELECT l.cnpj FROM lead l JOIN etapa t ON t.id = l.etapa_id WHERE t.cliente = 1)")
+    else:
+        cond.append("e.cnpj NOT IN (SELECT cnpj FROM lead WHERE descartado = 1)")
     if not f.incluir_nao_contatar:
         cond.append("e.cnpj_basico NOT IN (SELECT cnpj_basico FROM nao_contatar)")
     if f.indice_minimo:
@@ -181,6 +192,8 @@ def buscar(conn: sqlite3.Connection, f: Filtros, por_pagina: int = POR_PAGINA) -
         "e.ddd1, e.telefone1, e.data_inicio, e.atualizado_em, p.razao_social, p.porte, p.capital_social, "
         "e.cnpj_basico IN (SELECT cnpj_basico FROM referencia_empresa) AS referencia, "
         "i.score, i.motivos, i.linha_produto, "
+        "(SELECT t.nome || CASE WHEN l.favorito THEN ' ★' ELSE '' END FROM lead l JOIN etapa t ON t.id = l.etapa_id "
+        " WHERE l.cnpj = e.cnpj AND l.descartado = 0) AS lead_etapa, "
         "m.descricao AS municipio_nome, c.descricao AS cnae_descricao "
         f"{base.replace(where, '')} LEFT JOIN cnae c ON c.codigo = e.cnae_principal {where} "
         f"ORDER BY {ordem} LIMIT ? OFFSET ?", params + [por_pagina, (pagina - 1) * por_pagina])]
@@ -212,3 +225,37 @@ def _anexar_segmentos(conn: sqlite3.Connection, linhas: list[dict]) -> None:
         l["motivos_resumo"] = descrever_motivos(l.get("motivos"), limite=3)
         l["segmentos"] = segs.get(l["cnpj"], [])
         l["cnpj_formatado"] = formatar_cnpj(l["cnpj"])
+
+
+COLUNAS_EXPORTACAO = [
+    ("cnpj_formatado", "CNPJ"), ("razao_social", "Razão social"), ("nome_fantasia", "Nome fantasia"),
+    ("tipo", "Matriz/filial"), ("municipio_nome", "Município"), ("uf", "UF"), ("segmento", "Segmento"),
+    ("cnae_formatado", "CNAE principal"), ("cnae_descricao", "Descrição do CNAE"), ("porte_desc", "Porte"),
+    ("score", "Índice (estimativa interna)"), ("linha_produto", "Linha de produto sugerida"),
+    ("telefone", "Telefone cadastral (Receita)"), ("email", "E-mail cadastral (Receita)"),
+    ("lead_etapa", "Lead (etapa)"), ("referencia_txt", "Já atendida/cotada"),
+]
+LIMITE_EXPORTACAO = 50_000
+
+
+def buscar_para_exportar(conn: sqlite3.Connection, f: Filtros) -> list[dict]:
+    """Todas as linhas do filtro (até LIMITE_EXPORTACAO), sem dados de sócios."""
+    from espaco_alarcon.domain.empresas import formatar_cnae
+    linhas: list[dict] = []
+    pagina = 1
+    while len(linhas) < LIMITE_EXPORTACAO:
+        f.pagina = pagina
+        r = buscar(conn, f, por_pagina=1000)
+        linhas.extend(r.linhas)
+        if pagina >= r.paginas:
+            break
+        pagina += 1
+    for l in linhas:
+        l["tipo"] = "Matriz" if l["matriz_filial"] == "1" else "Filial"
+        l["segmento"] = l["segmentos"][0]["nome"] if l["segmentos"] else "Outros"
+        l["cnae_formatado"] = formatar_cnae(l["cnae_principal"])
+        l["porte_desc"] = PORTES.get(l["porte"] or "", "")
+        l["telefone"] = f"({l['ddd1']}) {l['telefone1']}" if l["telefone1"] else ""
+        l["referencia_txt"] = "sim" if l.get("referencia") else ""
+        l["score"] = round(l["score"]) if l.get("score") is not None else None
+    return linhas[:LIMITE_EXPORTACAO]

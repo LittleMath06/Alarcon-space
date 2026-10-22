@@ -22,6 +22,39 @@
 {% if e.referencia %}<p class="aviso info">Empresa da <strong>lista de referência</strong> ({{ e.referencia.origem }}): já atendida ou cotada.
   Não aparece como lead novo. <a href="/importacao/revisar/{{ e.referencia.id }}">Ver conciliação</a></p>{% endif %}
 
+<section class="cartao" id="lead">
+  {% set l = e.lead %}
+  {% if not l %}
+    <form method="post" action="/leads/salvar" class="inline"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+      <input type="hidden" name="cnpj" value="{{ e.cnpj }}"><input type="hidden" name="voltar" value="/empresa/{{ e.cnpj }}#lead">
+      <button class="botao">Salvar como lead</button></form>
+  {% else %}
+    <h2>Lead {% if l.favorito %}★{% endif %} — {{ l.etapa_nome }}{% if l.descartado %} <span class="etiqueta erro">descartado</span>{% endif %}</h2>
+    {% if l.descartado %}<p>Motivo: {{ l.motivo_descarte }}</p>
+      <form method="post" action="/leads/{{ l.id }}/reabrir"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><button class="botao secundario">Reabrir</button></form>
+    {% else %}
+    <div class="acoes">
+      <form method="post" action="/leads/{{ l.id }}/etapa" class="inline-auto"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+        <label>Etapa <select name="etapa_id">{% for et in etapas %}<option value="{{ et.id }}" {{ "selected" if et.id == l.etapa_id }}>{{ et.nome }}</option>{% endfor %}</select></label>
+        <button class="botao pequeno">Mover</button></form>
+      <form method="post" action="/leads/{{ l.id }}/lembrete" class="inline-auto"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+        <label>Próximo contato <input type="date" name="data" value="{{ l.proximo_contato or '' }}"></label>
+        <button class="botao pequeno">Salvar</button></form>
+      <form method="post" action="/leads/{{ l.id }}/favorito" class="inline-auto"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="valor" value="{{ '0' if l.favorito else '1' }}">
+        <button class="botao secundario pequeno">{{ "Desfavoritar" if l.favorito else "★ Favoritar" }}</button></form>
+    </div>
+    <form method="post" action="/leads/{{ l.id }}/nota" class="formulario linha-form"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+      <label>Nova observação <textarea name="texto" rows="2" required maxlength="4000"></textarea></label>
+      <button class="botao pequeno">Adicionar nota</button></form>
+    <details><summary>Descartar este lead</summary>
+      <form method="post" action="/leads/{{ l.id }}/descartar" class="formulario linha-form"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+        <label>Motivo (obrigatório) <input name="motivo" required maxlength="300"></label><button class="botao secundario pequeno">Descartar</button></form></details>
+    {% endif %}
+    {% if l.notas %}<h3>Notas</h3><ul class="notas">{% for n in l.notas %}<li><span class="suave">{{ n.criada_em[:10] | data_br }}</span> {{ n.texto }}</li>{% endfor %}</ul>{% endif %}
+    <details><summary>Histórico</summary><ul class="notas">{% for h in l.historico %}<li><span class="suave">{{ h.em[:16] | replace("T", " ") }}</span> {{ h.evento }}{% if h.detalhe %}: {{ h.detalhe }}{% endif %}</li>{% endfor %}</ul></details>
+  {% endif %}
+</section>
+
 {% if e.indice %}
 <section class="cartao destaque">
   <h2>Compatibilidade estimada: <span class="indice grande">{{ e.indice.score | round(0) | int }}</span> <span class="suave">de 100</span></h2>

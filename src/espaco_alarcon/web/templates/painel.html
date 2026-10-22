@@ -2,31 +2,67 @@
 {% block titulo %}Dashboard{% endblock %}
 {% block conteudo %}
 <h1>Olá, {{ sessao.usuario.nome }}</h1>
+{% if not base_ok %}
+<p class="aviso info">A base de empresas ainda não foi importada. Vá em <a href="/fontes">Status das fontes</a> e clique em "Importar / atualizar agora".</p>
+{% else %}
+<div class="indicadores">
+  <a class="indicador" href="/busca?indice_minimo={{ m.indice_lead_novo }}&lead_status=nao_salvo"><span class="valor">{{ m.leads_novos | milhar }}</span>
+    <span class="rotulo">leads novos (índice ≥ {{ m.indice_lead_novo }}, não salvos, fora da referência)</span></a>
+  <a class="indicador" href="/leads"><span class="valor">{{ m.leads_salvos | milhar }}</span><span class="rotulo">leads salvos</span></a>
+  <a class="indicador" href="/leads?filtro=lembretes"><span class="valor">{{ m.lembretes | milhar }}</span><span class="rotulo">lembretes para hoje ou atrasados</span></a>
+  <a class="indicador" href="/busca?lead_status=cliente"><span class="valor">{{ m.clientes | milhar }}</span><span class="rotulo">clientes confirmados por você</span></a>
+</div>
+<div class="indicadores">
+  <div class="indicador"><span class="valor">{{ m.estabelecimentos | milhar }}</span><span class="rotulo">estabelecimentos na base</span></div>
+  <div class="indicador"><span class="valor">{{ m.empresas | milhar }}</span><span class="rotulo">empresas</span></div>
+  <div class="indicador"><span class="valor">{{ m.referencias | milhar }}</span><span class="rotulo">empresas da referência (já atendidas/cotadas)</span></div>
+  <div class="indicador"><span class="valor">{{ m.sem_contato | milhar }}</span><span class="rotulo">estabelecimentos sem nenhum contato</span></div>
+</div>
+
+<div class="colunas">
+  <section class="cartao">
+    <h2>Mais compatíveis ainda não trabalhados</h2>
+    <table class="tabela"><tbody>
+    {% for t in m.top %}<tr><td class="num"><span class="indice">{{ t.score | round(0) | int }}</span></td>
+      <td><a href="/empresa/{{ t.cnpj }}">{{ t.razao_social }}</a><br><span class="suave">{{ t.municipio or "" }}/{{ t.uf }}{% if t.linha_produto %} · {{ t.linha_produto.split(" (")[0] }}{% endif %}</span></td></tr>
+    {% else %}<tr><td class="vazio-texto">Nenhum.</td></tr>{% endfor %}
+    </tbody></table>
+    <p><a href="/busca?indice_minimo={{ m.indice_lead_novo }}&lead_status=nao_salvo&so_matriz=1">Ver todos</a></p>
+  </section>
+  <section class="cartao">
+    <h2>Pipeline</h2>
+    <table class="tabela compacta-larga"><tbody>{% for e in m.por_etapa %}<tr><td>{{ e.nome }}</td><td class="num">{{ e.n }}</td></tr>{% endfor %}
+      <tr><td class="suave">Descartados</td><td class="num suave">{{ m.descartados }}</td></tr></tbody></table>
+    <h3>Próximos contatos</h3>
+    {% if m.proximos_lembretes %}<table class="tabela"><tbody>{% for l in m.proximos_lembretes %}
+      <tr><td class="nowrap">{{ l.proximo_contato | data_br }}</td><td><a href="/empresa/{{ l.cnpj }}">{{ l.razao_social }}</a><br><span class="suave">{{ l.etapa }}</span></td></tr>{% endfor %}</tbody></table>
+    {% else %}<p class="vazio-texto">Nenhum lembrete agendado.</p>{% endif %}
+  </section>
+</div>
+
+<div class="colunas">
+  <section class="cartao">
+    <h2>Por segmento (linha sugerida)</h2>
+    <table class="tabela"><thead><tr><th>Segmento</th><th class="num">Estab.</th><th class="num">Índice médio</th></tr></thead><tbody>
+      {% for s in m.por_segmento %}<tr><td>{{ s.nome }}</td><td class="num">{{ s.n | milhar }}</td><td class="num">{{ s.media | int if s.media is not none else "—" }}</td></tr>{% endfor %}</tbody></table>
+  </section>
+  <section class="cartao">
+    <h2>Por região</h2>
+    <table class="tabela compacta-larga"><tbody>{% for r in m.por_regiao %}<tr><td>{{ r.nome }}</td><td class="num">{{ r.n | milhar }}</td></tr>{% endfor %}</tbody></table>
+  </section>
+</div>
+{% endif %}
+
 <section class="cartao">
-  <h2>Situação do sistema</h2>
-  {% if base %}
-  <div class="indicadores">
-    <div class="indicador"><span class="valor">{{ "{:,}".format(base.estabelecimentos).replace(",", ".") }}</span><span class="rotulo">estabelecimentos na base</span></div>
-    <div class="indicador"><span class="valor">{{ "{:,}".format(base.empresas).replace(",", ".") }}</span><span class="rotulo">empresas</span></div>
-    <div class="indicador"><span class="valor">{{ base.competencia.competencia }}</span><span class="rotulo">competência da Receita{% if base.competencia.origem == "espelho" %} (espelho){% endif %}</span></div>
-  </div>
-  <h3>Estados com mais estabelecimentos</h3>
-  <table class="tabela compacta"><tbody>
-    {% for linha in base.por_uf %}<tr><td>{{ linha.uf }}</td><td class="num">{{ "{:,}".format(linha.n).replace(",", ".") }}</td></tr>{% endfor %}
+  <h2>Fontes de dados</h2>
+  <table class="tabela"><thead><tr><th>Fonte</th><th>Última atualização</th><th>Situação</th></tr></thead><tbody>
+  {% for f in fontes %}<tr><td>{{ f.fonte }}</td><td>{{ (f.ultima or "")[:16] | replace("T", " ") or "—" }}</td><td>{{ f.resultado }}</td></tr>{% endfor %}
   </tbody></table>
-  {% elif status %}
-  <p class="aviso info">A importação da base da Receita está em andamento ou foi interrompida. Veja em <a href="/fontes">Status das fontes</a>.</p>
-  {% else %}
-  <p class="aviso info">A base de empresas ainda não foi importada. Vá em <a href="/fontes">Status das fontes</a> e clique em "Importar / atualizar agora".</p>
-  {% endif %}
   <dl class="dados">
     <dt>Endereço neste computador</dt>
-    <dd><code id="url-local">{{ url_local }}</code>
-      <button type="button" class="botao secundario pequeno" data-copiar="{{ url_local }}">Copiar</button></dd>
-    <dt>Acesso pela rede local</dt>
-    <dd>Desativado (será ativado nas Configurações, Sprint 8)</dd>
-    <dt>Pasta de dados</dt>
-    <dd><code>{{ data_dir }}</code></dd>
+    <dd><code>{{ url_local }}</code> <button type="button" class="botao secundario pequeno" data-copiar="{{ url_local }}">Copiar</button></dd>
+    <dt>Acesso pela rede local</dt><dd>Desativado (Configurações, Sprint 8)</dd>
+    <dt>Pasta de dados</dt><dd><code>{{ data_dir }}</code></dd>
   </dl>
 </section>
 {% endblock %}

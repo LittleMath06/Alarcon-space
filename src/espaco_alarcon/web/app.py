@@ -21,7 +21,7 @@ from espaco_alarcon.audit import configurar_log, log, registrar
 from espaco_alarcon.config import Config
 from espaco_alarcon.db import conectar, migrar, transacao
 from espaco_alarcon.jobs import importar_receita
-from espaco_alarcon.web import rotas_busca, rotas_config, rotas_ficha, rotas_importacao
+from espaco_alarcon.web import rotas_busca, rotas_config, rotas_ficha, rotas_importacao, rotas_leads
 from espaco_alarcon.connectors import brasilapi, site as conector_site
 from espaco_alarcon.jobs import processos
 
@@ -40,7 +40,7 @@ templates.env.filters["moeda"] = (lambda v: "R$ " + f"{v:,.2f}".replace(",", "X"
 TELAS = [
     ("painel", "/", "Dashboard", None),
     ("busca", "/busca", "Busca", None),
-    ("leads", "/leads", "Leads e pipeline", "6"),
+    ("leads", "/leads", "Leads e pipeline", None),
     ("importacao", "/importacao", "Importação", None),
     ("fontes", "/fontes", "Status das fontes", None),
     ("configuracoes", "/configuracoes", "Configurações", None),
@@ -107,6 +107,7 @@ def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
     rotas_importacao.registrar_rotas(app, web)
     rotas_config.registrar_rotas(app, web, iniciar_processo=iniciar_processo)
     rotas_ficha.registrar_rotas(app, web, coletor=coletor_site, consultar_api=consultar_api)
+    rotas_leads.registrar_rotas(app, web)
 
     @app.middleware("http")
     async def cabecalhos_seguranca(request: Request, call_next):
@@ -216,26 +217,6 @@ def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
         resp = RedirectResponse("/login", status_code=303)
         resp.delete_cookie(COOKIE_SESSAO, path="/")
         return resp
-
-    @app.get("/", response_class=HTMLResponse)
-    def painel(request: Request, sessao: auth.Sessao = Depends(sessao_atual),
-               conn: sqlite3.Connection = Depends(db)):
-        base = None
-        status = importar_receita.status_receita(conn)
-        if status and status["ultima_concluida"]:
-            q = lambda sql: conn.execute(sql).fetchone()[0]  # noqa: E731
-            base = {
-                "competencia": status["ultima_concluida"],
-                "estabelecimentos": q("SELECT COUNT(*) FROM estabelecimento"),
-                "empresas": q("SELECT COUNT(*) FROM empresa"),
-                "por_uf": conn.execute("SELECT uf, COUNT(*) n FROM estabelecimento GROUP BY uf ORDER BY n DESC"
-                                       " LIMIT 10").fetchall(),
-            }
-        return render(request, "painel.html", {
-            "ativo": "painel", "sessao": sessao, "base": base, "status": status,
-            "url_local": f"http://localhost:{cfg.porta}/",
-            "data_dir": str(cfg.data_dir),
-        })
 
     @app.get("/fontes", response_class=HTMLResponse)
     def fontes(request: Request, msg: str = "", sessao: auth.Sessao = Depends(sessao_atual),

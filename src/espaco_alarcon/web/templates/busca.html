@@ -47,6 +47,9 @@
   <label>IE/ICMS
     <select name="ie_status"><option value="">Qualquer</option>
       {% for k, v in ie_status.items() %}<option value="{{ k }}" {{ "selected" if f.ie_status == k }}>{{ v }}</option>{% endfor %}</select></label>
+  <label>Situação como lead
+    <select name="lead_status"><option value="">Todas (sem descartados)</option>
+      {% for k, v in lead_status.items() %}<option value="{{ k }}" {{ "selected" if f.lead_status == k }}>{{ v }}</option>{% endfor %}</select></label>
   <label>Índice mínimo <input name="indice_minimo" type="number" min="0" max="100" step="5" value="{{ f.indice_minimo or '' }}" placeholder="0 a 100"></label>
   <label class="largo">Linha de produto sugerida
     <select name="linha_segmento"><option value="">Todas</option>
@@ -63,7 +66,9 @@
   <section class="cartao vazio"><p>Nenhuma empresa encontrada com esses filtros.</p></section>
 {% else %}
   <p class="contagem">{{ resultado.total | milhar }}{% if resultado.total_limitado %}+{% endif %} estabelecimento(s)
-    · página {{ resultado.pagina }} de {{ resultado.paginas | milhar }}</p>
+    · página {{ resultado.pagina }} de {{ resultado.paginas | milhar }}
+    <span class="acoes-direita"><a class="botao secundario pequeno" href="/busca/exportar?{{ query_exportar }}&formato=xlsx">Exportar Excel</a>
+      <a class="botao secundario pequeno" href="/busca/exportar?{{ query_exportar }}&formato=csv">Exportar CSV</a></span></p>
   <div class="rolagem">
   <table class="tabela resultados">
     <thead><tr><th class="num">Índice</th><th>Empresa</th><th>CNPJ</th><th>Local</th><th>Segmento e linha sugerida</th><th>CNAE principal</th><th>Porte</th><th>Contato</th></tr></thead>
@@ -75,7 +80,11 @@
         <td><a href="/empresa/{{ l.cnpj }}"><strong>{{ l.razao_social }}</strong></a>
           {% if l.nome_fantasia %}<br><span class="suave">{{ l.nome_fantasia }}</span>{% endif %}
           {% if l.matriz_filial == "2" %}<span class="etiqueta">filial</span>{% endif %}
-          {% if l.referencia %}<span class="etiqueta andamento">já atendida/cotada</span>{% endif %}</td>
+          {% if l.referencia %}<span class="etiqueta andamento">já atendida/cotada</span>{% endif %}
+          {% if l.lead_etapa %}<span class="etiqueta ok">lead: {{ l.lead_etapa }}</span>
+          {% else %}<form method="post" action="/leads/salvar" class="inline"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+            <input type="hidden" name="cnpj" value="{{ l.cnpj }}"><input type="hidden" name="voltar" value="{{ url_atual }}">
+            <button class="botao secundario pequeno">Salvar lead</button></form>{% endif %}</td>
         <td class="nowrap">{{ l.cnpj_formatado }}
           <button type="button" class="botao secundario pequeno" data-copiar="{{ l.cnpj_formatado }}" aria-label="Copiar CNPJ">Copiar</button></td>
         <td>{{ l.municipio_nome or "" }}/{{ l.uf }}</td>

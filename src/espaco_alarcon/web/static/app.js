@@ -58,6 +58,10 @@
 
   window.EspacoAlarcon = { copiar: copiar };
 
+  document.addEventListener("change", function (ev) {
+    if (ev.target.matches("[data-enviar-ao-mudar]")) ev.target.form.submit();
+  });
+
   document.addEventListener("submit", function (ev) {
     var form = ev.target.closest("[data-confirmar]");
     if (form && !window.confirm(form.getAttribute("data-confirmar"))) ev.preventDefault();

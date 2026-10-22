@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block titulo %}Leads e pipeline{% endblock %}
+{% block conteudo %}
+<h1>Leads e pipeline</h1>
+{% if msg == "lead_erro" %}<p class="aviso erro" role="alert">{{ request.query_params.get("detalhe", "") }}</p>{% endif %}
+<nav class="pipeline">
+  <a href="/leads" class="{{ 'ativo' if not etapa_sel and filtro == 'ativos' }}">Todos</a>
+  {% for c in contagem %}<a href="/leads?etapa={{ c.id }}" class="{{ 'ativo' if etapa_sel == c.id }}">{{ c.nome }} <span class="contador">{{ c.n }}</span></a>{% endfor %}
+</nav>
+<nav class="abas">
+  <a href="/leads?filtro=favoritos" class="{{ 'ativo' if filtro == 'favoritos' }}">★ Favoritos</a>
+  <a href="/leads?filtro=lembretes" class="{{ 'ativo' if filtro == 'lembretes' }}">Lembretes de hoje/atrasados</a>
+  <a href="/leads?filtro=descartados" class="{{ 'ativo' if filtro == 'descartados' }}">Descartados</a>
+</nav>
+<p class="acoes"><a class="botao secundario pequeno" href="/leads/exportar?filtro={{ filtro }}&formato=xlsx">Exportar Excel</a>
+  <a class="botao secundario pequeno" href="/leads/exportar?filtro={{ filtro }}&formato=csv">Exportar CSV</a>
+  <span class="suave">Arquivo salvo também na pasta de exportações do sistema.</span></p>
+
+{% if not leads %}
+<section class="cartao vazio"><p>Nenhum lead aqui. Salve empresas pela <a href="/busca">Busca</a> ou pela ficha.</p></section>
+{% else %}
+<div class="rolagem"><table class="tabela">
+  <thead><tr><th></th><th>Empresa</th><th>Etapa</th><th>Próximo contato</th><th class="num">Índice</th><th>Ações</th></tr></thead>
+  <tbody>
+  {% for l in leads %}
+  <tr class="{{ 'atrasado' if l.proximo_contato and l.proximo_contato <= hoje }}">
+    <td>{% if not l.descartado %}<form method="post" action="/leads/{{ l.id }}/favorito"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="valor" value="{{ '0' if l.favorito else '1' }}">
+      <button class="estrela {{ 'marcada' if l.favorito }}" title="{{ 'Desfavoritar' if l.favorito else 'Favoritar' }}">★</button></form>{% endif %}</td>
+    <td><a href="/empresa/{{ l.cnpj }}"><strong>{{ l.razao_social }}</strong></a><br><span class="suave">{{ l.cnpj_formatado }} · {{ l.municipio or "" }}/{{ l.uf }}{% if l.n_notas %} · {{ l.n_notas }} nota(s){% endif %}</span>
+      {% if l.descartado %}<br><span class="texto-erro">Descartado: {{ l.motivo_descarte }}</span>{% endif %}</td>
+    <td>{% if l.descartado %}{{ l.etapa_nome }}{% else %}
+      <form method="post" action="/leads/{{ l.id }}/etapa" class="inline-auto"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+        <select name="etapa_id" data-enviar-ao-mudar>{% for e in etapas %}<option value="{{ e.id }}" {{ "selected" if e.id == l.etapa_id }}>{{ e.nome }}</option>{% endfor %}</select>
+        <noscript><button class="botao pequeno">Mover</button></noscript></form>{% endif %}</td>
+    <td>{% if not l.descartado %}<form method="post" action="/leads/{{ l.id }}/lembrete" class="inline-auto"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+        <input type="date" name="data" value="{{ l.proximo_contato or '' }}" data-enviar-ao-mudar></form>{% endif %}</td>
+    <td class="num">{% if l.score is not none %}<span class="indice">{{ l.score | round(0) | int }}</span>{% endif %}</td>
+    <td class="nowrap">{% if l.descartado %}
+        <form method="post" action="/leads/{{ l.id }}/reabrir" class="inline"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><button class="botao secundario pequeno">Reabrir</button></form>
+      {% else %}
+        <details class="inline-detalhe"><summary class="botao secundario pequeno">Descartar</summary>
+          <form method="post" action="/leads/{{ l.id }}/descartar"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+            <input name="motivo" placeholder="Motivo (obrigatório)" required maxlength="300"> <button class="botao pequeno">Confirmar</button></form></details>
+      {% endif %}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% endif %}
+<p class="dica">"Cliente confirmado" só é marcado por você, movendo o lead para essa etapa.</p>
+{% endblock %}
