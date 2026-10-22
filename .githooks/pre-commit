@@ -1,0 +1,6 @@
+#!/bin/sh
+# Bloqueia commits com nomes da lista de referência, segredos ou arquivos de dados.
+PY=python
+[ -x .venv/bin/python ] && PY=.venv/bin/python
+[ -x .venv/Scripts/python.exe ] && PY=.venv/Scripts/python.exe
+exec "$PY" scripts/verificar_repositorio.py

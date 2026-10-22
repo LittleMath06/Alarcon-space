@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titulo %}Dashboard{% endblock %}
+{% block conteudo %}
+<h1>Olá, {{ sessao.usuario.nome }}</h1>
+<section class="cartao">
+  <h2>Situação do sistema</h2>
+  <p class="aviso info">A base de empresas ainda não foi importada. A importação dos Dados Abertos do CNPJ chega na Sprint 2a; até lá não há números para mostrar.</p>
+  <dl class="dados">
+    <dt>Endereço neste computador</dt>
+    <dd><code id="url-local">{{ url_local }}</code>
+      <button type="button" class="botao secundario pequeno" data-copiar="{{ url_local }}">Copiar</button></dd>
+    <dt>Acesso pela rede local</dt>
+    <dd>Desativado (será ativado nas Configurações, Sprint 8)</dd>
+    <dt>Pasta de dados</dt>
+    <dd><code>{{ data_dir }}</code></dd>
+  </dl>
+</section>
+{% endblock %}

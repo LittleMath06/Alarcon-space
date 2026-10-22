@@ -91,3 +91,14 @@ git --version; py -0p; python --version; node --version
 Get-PSDrive C | Select-Object Used, Free
 ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 ```
+
+## 7. Decisões da Sprint 1
+
+- **Exceções à autenticação:** `/saude` (só devolve `{"app": "espaco-alarcon", "versao": ...}`, usado pelo launcher),
+  `/login`, `/primeiro-acesso` (só de `127.0.0.1` e só enquanto não existir usuário) e `/static/*`.
+  `/_local/encerrar` exige origem local **e** o token gravado em `DATA_DIR\servidor.json`; fora disso responde 404.
+- **Sessões no servidor** (tabela `sessao`), com o token guardado só como SHA-256. Cookies sem `Secure` porque o acesso
+  pela LAN é HTTP; compensado com `HttpOnly`, `SameSite=Strict`, CSRF e CSP.
+- **Conexão SQLite por requisição** (o arquivo é local; abrir é barato e evita compartilhar conexão entre threads).
+- **Porta padrão 8765**, sobrescrevível por `ESPACO_ALARCON_PORTA`.
+- **Modo LAN** lido da tabela `configuracao` (`lan_ativo = 1` → escuta em `0.0.0.0`). Tela para ativar: Sprint 8.

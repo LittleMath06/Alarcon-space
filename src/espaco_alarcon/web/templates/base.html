@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Espaço Alarcon{% endblock %} · Espaço Alarcon</title>
+  <link rel="icon" href="/static/icone.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+{% if sessao %}
+<div class="layout">
+  <nav class="menu" aria-label="Menu principal">
+    <div class="marca">Espaço <strong>Alarcon</strong></div>
+    <ul>
+      {% for chave, rota, nome, sprint in telas %}
+      <li><a href="{{ rota }}" class="{{ 'ativo' if ativo == chave else '' }}">{{ nome }}</a></li>
+      {% endfor %}
+    </ul>
+    <form method="post" action="/sair" class="sair">
+      <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+      <span class="usuario">{{ sessao.usuario.nome }}</span>
+      <button type="submit" class="botao secundario">Sair</button>
+    </form>
+  </nav>
+  <main class="conteudo">
+    {% block conteudo %}{% endblock %}
+  </main>
+</div>
+{% else %}
+<main class="centro">
+  {% block publico %}{% endblock %}
+</main>
+{% endif %}
+<footer class="rodape">Espaço Alarcon v{{ versao }} · oportunidades potenciais, não promessas de compra</footer>
+</body>
+</html>

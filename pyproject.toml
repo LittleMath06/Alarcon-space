@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "espaco-alarcon"
+version = "0.1.0"
+description = "Espaço Alarcon — prospecção B2B local para a Condvolt"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi==0.115.12",
+  "uvicorn==0.34.2",
+  "jinja2==3.1.6",
+  "argon2-cffi==23.1.0",
+  "python-multipart==0.0.20",
+]
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.5", "httpx==0.28.1"]
+
+[project.scripts]
+espaco-alarcon = "espaco_alarcon.launcher:main"
+espaco-alarcon-redefinir-senha = "espaco_alarcon.redefinir_senha:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+espaco_alarcon = ["db/migrations/*.sql", "web/templates/*.html", "web/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
