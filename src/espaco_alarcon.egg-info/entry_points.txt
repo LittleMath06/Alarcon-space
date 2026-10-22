@@ -1,3 +1,0 @@
-[console_scripts]
-espaco-alarcon = espaco_alarcon.launcher:main
-espaco-alarcon-redefinir-senha = espaco_alarcon.redefinir_senha:main
