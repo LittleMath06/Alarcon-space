@@ -34,6 +34,7 @@ def filtros_da_requisicao(request: Request) -> busca.Filtros:
         com_email=q.get("com_email") == "1",
         com_telefone=q.get("com_telefone") == "1",
         so_matriz=q.get("so_matriz") == "1",
+        incluir_referencia=q.get("incluir_referencia") == "1",
         ordem=q.get("ordem", "razao") if q.get("ordem", "razao") in busca.ORDENACOES else "razao",
         pagina=max(1, _int(q.get("pagina"), 1) or 1),
     )

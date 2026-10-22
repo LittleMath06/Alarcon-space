@@ -21,7 +21,7 @@ from espaco_alarcon.audit import configurar_log, log, registrar
 from espaco_alarcon.config import Config
 from espaco_alarcon.db import conectar, migrar, transacao
 from espaco_alarcon.jobs import importar_receita
-from espaco_alarcon.web import rotas_busca
+from espaco_alarcon.web import rotas_busca, rotas_importacao
 
 COOKIE_SESSAO = "ea_sessao"
 COOKIE_CSRF_LOGIN = "ea_csrf"
@@ -39,7 +39,7 @@ TELAS = [
     ("painel", "/", "Dashboard", None),
     ("busca", "/busca", "Busca", None),
     ("leads", "/leads", "Leads e pipeline", "6"),
-    ("importacao", "/importacao", "Importação", "3"),
+    ("importacao", "/importacao", "Importação", None),
     ("fontes", "/fontes", "Status das fontes", None),
     ("configuracoes", "/configuracoes", "Configurações", "4"),
 ]
@@ -99,6 +99,7 @@ def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
 
     web = SimpleNamespace(db=db, sessao_atual=sessao_atual, exigir_csrf=exigir_csrf, render=render, cfg=cfg)
     rotas_busca.registrar(app, web)
+    rotas_importacao.registrar_rotas(app, web)
 
     @app.middleware("http")
     async def cabecalhos_seguranca(request: Request, call_next):

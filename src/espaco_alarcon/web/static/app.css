@@ -111,3 +111,9 @@ a.botao { display: inline-block; text-decoration: none; }
 .nowrap { white-space: nowrap; }
 .paginacao { display: flex; gap: 1rem; align-items: center; justify-content: center; margin: 1rem 0; }
 @media (max-width: 760px) { .filtros .largo { grid-column: auto; } }
+
+.abas { display: flex; flex-wrap: wrap; gap: .25rem; margin-bottom: .75rem; border-bottom: 1px solid var(--borda); }
+.abas a { padding: .4rem .75rem; text-decoration: none; color: var(--texto-suave); border-bottom: 3px solid transparent; }
+.abas a.ativo { color: var(--verde-escuro); border-bottom-color: var(--dourado); font-weight: 600; }
+form.inline { display: inline; }
+tr.selecionado { background: var(--sucesso-fundo); }

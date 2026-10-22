@@ -107,4 +107,8 @@ def carregar_ficha(conn: sqlite3.Connection, cnpj: str) -> dict | None:
         "q.descricao AS qualificacao_descricao FROM socio s LEFT JOIN qualificacao q ON q.codigo = s.qualificacao "
         "WHERE s.cnpj_basico = ? ORDER BY s.nome", (e["cnpj_basico"],))]
     e["contatos"] = contatos_receita(e, e["data_referencia"])
+    e["referencia"] = conn.execute(
+        "SELECT r.id, r.origem, r.decisao FROM referencia r WHERE r.status = 'confirmado' AND "
+        "(r.cnpj_basico = ? OR substr(r.cnpj_informado, 1, 8) = ?) LIMIT 1",
+        (e["cnpj_basico"], e["cnpj_basico"])).fetchone()
     return e

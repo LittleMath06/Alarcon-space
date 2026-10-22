@@ -37,6 +37,7 @@
     <label class="opcao"><input type="checkbox" name="com_email" value="1" {{ "checked" if f.com_email }}> com e-mail</label>
     <label class="opcao"><input type="checkbox" name="com_telefone" value="1" {{ "checked" if f.com_telefone }}> com telefone</label>
     <label class="opcao"><input type="checkbox" name="so_matriz" value="1" {{ "checked" if f.so_matriz }}> matrizes</label>
+    <label class="opcao"><input type="checkbox" name="incluir_referencia" value="1" {{ "checked" if f.incluir_referencia }}> incluir empresas já atendidas/cotadas</label>
   </fieldset>
   <label>Ordenar por
     <select name="ordem">{% for k, (nome, _) in ordenacoes.items() %}<option value="{{ k }}" {{ "selected" if f.ordem == k }}>{{ nome }}</option>{% endfor %}</select></label>
@@ -58,7 +59,8 @@
       <tr>
         <td><a href="/empresa/{{ l.cnpj }}"><strong>{{ l.razao_social }}</strong></a>
           {% if l.nome_fantasia %}<br><span class="suave">{{ l.nome_fantasia }}</span>{% endif %}
-          {% if l.matriz_filial == "2" %}<span class="etiqueta">filial</span>{% endif %}</td>
+          {% if l.matriz_filial == "2" %}<span class="etiqueta">filial</span>{% endif %}
+          {% if l.referencia %}<span class="etiqueta andamento">já atendida/cotada</span>{% endif %}</td>
         <td class="nowrap">{{ l.cnpj_formatado }}
           <button type="button" class="botao secundario pequeno" data-copiar="{{ l.cnpj_formatado }}" aria-label="Copiar CNPJ">Copiar</button></td>
         <td>{{ l.municipio_nome or "" }}/{{ l.uf }}</td>

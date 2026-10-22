@@ -45,6 +45,7 @@ class Filtros:
     com_email: bool = False
     com_telefone: bool = False
     so_matriz: bool = False
+    incluir_referencia: bool = False   # empresas já atendidas/cotadas ficam fora por padrão
     ordem: str = "razao"
     pagina: int = 1
 
@@ -128,6 +129,8 @@ def _where(conn: sqlite3.Connection, f: Filtros) -> tuple[list[str], list]:
         cond.append("e.telefone1 IS NOT NULL")
     if f.so_matriz:
         cond.append("e.matriz_filial = '1'")
+    if not f.incluir_referencia:
+        cond.append("e.cnpj_basico NOT IN (SELECT cnpj_basico FROM referencia_empresa)")
     return cond, params
 
 
@@ -145,6 +148,7 @@ def buscar(conn: sqlite3.Connection, f: Filtros, por_pagina: int = POR_PAGINA) -
     linhas = [dict(r) for r in conn.execute(
         "SELECT e.cnpj, e.nome_fantasia, e.matriz_filial, e.situacao, e.uf, e.cnae_principal, e.email, "
         "e.ddd1, e.telefone1, e.data_inicio, e.atualizado_em, p.razao_social, p.porte, p.capital_social, "
+        "e.cnpj_basico IN (SELECT cnpj_basico FROM referencia_empresa) AS referencia, "
         "m.descricao AS municipio_nome, c.descricao AS cnae_descricao "
         f"{base.replace(where, '')} LEFT JOIN cnae c ON c.codigo = e.cnae_principal {where} "
         f"ORDER BY {ordem} LIMIT ? OFFSET ?", params + [por_pagina, (pagina - 1) * por_pagina])]

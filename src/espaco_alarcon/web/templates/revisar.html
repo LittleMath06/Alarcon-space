@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block titulo %}Revisar conciliação{% endblock %}
+{% block conteudo %}
+<p><a href="/importacao">‹ voltar para a lista</a></p>
+<h1>{{ r.nome_original }}</h1>
+<p class="sub">Linha {{ r.linha }} · origem: {{ r.origem }} · situação: <strong>{{ status_nomes[r.status] }}</strong>{% if r.decisao == "manual" %} (decisão manual em {{ (r.revisado_em or "")[:10] | data_br }}){% endif %}</p>
+
+{% if msg == "escolhido" %}<p class="aviso sucesso" role="status">Empresa associada.</p>
+{% elif msg == "rejeitado" %}<p class="aviso sucesso" role="status">Candidato descartado; não será mais sugerido para este nome.</p>
+{% elif msg == "cnpj_na_base" %}<p class="aviso sucesso" role="status">CNPJ registrado e encontrado na base.</p>
+{% elif msg == "cnpj_fora_da_base" %}<p class="aviso info" role="status">CNPJ registrado. Ele não está na base importada (CNAE/UF fora do filtro); a empresa fica na lista de exclusão mesmo assim.</p>
+{% elif msg == "cnpj_invalido" %}<p class="aviso erro" role="alert">{{ detalhe }}</p>
+{% elif msg == "nao_encontrado" %}<p class="aviso sucesso" role="status">Marcado como não encontrado.</p>
+{% elif msg == "desfeito" %}<p class="aviso sucesso" role="status">Decisão desfeita; conciliação automática refeita.</p>{% endif %}
+
+{% if r.pessoa_fisica_provavel %}<p class="aviso info">Este nome parece conter o nome de uma pessoa (empresário individual): trate como dado pessoal (LGPD).</p>{% endif %}
+{% if original %}<p class="aviso info">Este nome é duplicado de: <a href="/importacao/revisar/{{ original.id }}">{{ original.nome_original }}</a>.</p>{% endif %}
+{% if duplicados %}<p class="dica">Também aparece na lista como: {% for d in duplicados %}linha {{ d.linha }} ("{{ d.nome_original }}"){% if not loop.last %}, {% endif %}{% endfor %} — unificados.</p>{% endif %}
+
+{% if r.status == "confirmado" %}
+<section class="cartao">
+  <h2>Associação atual</h2>
+  {% if r.cnpj_basico %}<p><strong>{{ r.razao_social }}</strong> — CNPJ básico {{ r.cnpj_basico }}</p>
+  {% elif r.cnpj_informado %}<p>CNPJ informado: <strong>{{ cnpj_informado_fmt }}</strong> (fora da base importada)</p>{% endif %}
+</section>
+{% endif %}
+
+{% if r.status != "duplicado" %}
+<section class="cartao">
+  <h2>Candidatos na base</h2>
+  {% if not candidatos %}<p class="vazio-texto">Nenhuma empresa parecida na base importada. Se souber o CNPJ, informe abaixo.</p>{% else %}
+  <div class="rolagem"><table class="tabela">
+    <thead><tr><th class="num">Nota</th><th>Empresa</th><th>Matriz / local</th><th>CNAE principal</th><th>Porte · natureza</th><th>Estab.</th><th></th></tr></thead>
+    <tbody>
+    {% for c in candidatos %}
+      <tr {% if c.cnpj_basico == r.cnpj_basico %}class="selecionado"{% endif %}>
+        <td class="num">{{ c.score | round(0) | int }}</td>
+        <td><strong>{{ c.razao_social }}</strong>{% if c.campo == "nome_fantasia" %}<br><span class="suave">pelo nome fantasia: {{ c.nome }}</span>{% endif %}</td>
+        <td class="nowrap">{% if c.matriz %}<a href="/empresa/{{ c.matriz }}" target="_blank" rel="noopener">{{ c.matriz_fmt }}</a>{% endif %}<br><span class="suave">{{ c.local or "" }}</span></td>
+        <td>{{ c.cnae_fmt }}</td>
+        <td>{{ c.porte_desc }}<br><span class="suave">{{ c.natureza or "" }}</span></td>
+        <td>{{ c.n_estab }}</td>
+        <td class="nowrap">
+          {% if c.cnpj_basico != r.cnpj_basico %}
+          <form method="post" action="/importacao/revisar/{{ r.id }}/escolher" class="inline"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="cnpj_basico" value="{{ c.cnpj_basico }}"><button class="botao pequeno">É esta</button></form>
+          {% endif %}
+          <form method="post" action="/importacao/revisar/{{ r.id }}/rejeitar" class="inline"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="cnpj_basico" value="{{ c.cnpj_basico }}"><button class="botao secundario pequeno">Não é esta empresa</button></form>
+        </td></tr>
+    {% endfor %}
+    </tbody></table></div>
+  {% endif %}
+</section>
+
+<section class="cartao">
+  <h2>Outras ações</h2>
+  <form method="post" action="/importacao/revisar/{{ r.id }}/cnpj" class="formulario linha-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <label>Informar o CNPJ manualmente <input name="cnpj" placeholder="00.000.000/0000-00" required></label>
+    <button type="submit" class="botao">Salvar CNPJ</button>
+  </form>
+  <form method="post" action="/importacao/revisar/{{ r.id }}/nao-encontrado" class="formulario linha-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <label>Observação (opcional) <input name="observacao" maxlength="300" value="{{ r.observacao or '' }}"></label>
+    <button type="submit" class="botao secundario">Marcar como não encontrada</button>
+  </form>
+  {% if r.decisao == "manual" %}
+  <form method="post" action="/importacao/revisar/{{ r.id }}/desfazer"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <button type="submit" class="botao secundario">Desfazer decisão manual</button></form>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

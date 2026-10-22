@@ -4,6 +4,8 @@
 <p><a href="{{ voltar if voltar and '/busca' in voltar else '/busca' }}">‹ voltar para a busca</a></p>
 <h1>{{ e.razao_social }}</h1>
 {% if e.nome_fantasia %}<p class="sub">{{ e.nome_fantasia }}</p>{% endif %}
+{% if e.referencia %}<p class="aviso info">Empresa da <strong>lista de referência</strong> ({{ e.referencia.origem }}): já atendida ou cotada.
+  Não aparece como lead novo. <a href="/importacao/revisar/{{ e.referencia.id }}">Ver conciliação</a></p>{% endif %}
 
 <section class="cartao">
   <h2>Identificação</h2>
