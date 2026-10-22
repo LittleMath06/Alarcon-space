@@ -564,9 +564,12 @@ class Importador:
                 "FROM receita_arquivo WHERE importacao_id = ?", (imp_id,)).fetchone()
             contagens.update({"linhas_lidas": por_arquivo[0], "linhas_invalidas": por_arquivo[1],
                               "caracteres_trocados": por_arquivo[2]})
+            reconstruir_indice_busca(self.conn)
             self.conn.execute("UPDATE receita_importacao SET status = 'concluida', etapa = 'concluida', "
                               "concluida_em = ? WHERE id = ?", (_agora(), imp_id))
         resumo = self._atualizar_resumo(imp_id, contagens)
+        self._avisar("atualizando estatísticas do banco (ANALYZE)")
+        self.conn.execute("ANALYZE")
         manter = self.conn.execute("SELECT valor FROM configuracao WHERE chave = 'receita_manter_zips'").fetchone()
         if not self.fonte.local and not (manter and manter[0] == "1"):
             imp = self.conn.execute("SELECT competencia FROM receita_importacao WHERE id = ?", (imp_id,)).fetchone()
@@ -588,6 +591,14 @@ class Importador:
         if not hasattr(self, "_filtro_cache"):
             self._filtro_cache = carregar_filtro(self.conn)
         return self._filtro_cache
+
+
+def reconstruir_indice_busca(conn: sqlite3.Connection) -> None:
+    """Refaz o índice textual da busca (chamar dentro de uma transação)."""
+    conn.execute("DELETE FROM busca_fts")
+    conn.execute("INSERT INTO busca_fts (cnpj, razao_social, nome_fantasia) "
+                 "SELECT e.cnpj, COALESCE(p.razao_social, ''), COALESCE(e.nome_fantasia, '') "
+                 "FROM estabelecimento e LEFT JOIN empresa p ON p.cnpj_basico = e.cnpj_basico")
 
 
 def _agora() -> str:

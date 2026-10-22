@@ -95,3 +95,19 @@ legend { font-weight: 600; padding: 0 .3rem; }
 .indicador { background: var(--fundo); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; }
 .indicador .valor { font-size: 1.6rem; font-weight: 700; color: var(--verde-escuro); }
 .indicador .rotulo { color: var(--texto-suave); font-size: .85rem; }
+
+.filtros { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: .75rem 1rem; align-items: end; }
+.filtros label { display: flex; flex-direction: column; gap: .25rem; font-weight: 600; font-size: .85rem; }
+.filtros .largo { grid-column: span 2; }
+.filtros fieldset { flex-direction: row; flex-wrap: wrap; gap: .25rem 1rem; }
+.filtros .opcao { flex-direction: row; align-items: center; font-weight: 400; gap: .35rem; }
+.filtros .acoes { display: flex; gap: .5rem; align-items: center; }
+select { font: inherit; padding: .5rem .55rem; border: 1px solid var(--borda); border-radius: 6px; background: var(--superficie); }
+a.botao { display: inline-block; text-decoration: none; }
+.contagem { font-weight: 600; margin: 1rem 0 .25rem; }
+.rolagem { overflow-x: auto; }
+.resultados td { vertical-align: top; }
+.suave { color: var(--texto-suave); font-size: .85rem; }
+.nowrap { white-space: nowrap; }
+.paginacao { display: flex; gap: 1rem; align-items: center; justify-content: center; margin: 1rem 0; }
+@media (max-width: 760px) { .filtros .largo { grid-column: auto; } }

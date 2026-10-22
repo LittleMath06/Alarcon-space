@@ -7,6 +7,7 @@ import secrets
 import sqlite3
 from importlib import resources
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Iterator
 
 from fastapi import Depends, FastAPI, Form, HTTPException, Request
@@ -20,6 +21,7 @@ from espaco_alarcon.audit import configurar_log, log, registrar
 from espaco_alarcon.config import Config
 from espaco_alarcon.db import conectar, migrar, transacao
 from espaco_alarcon.jobs import importar_receita
+from espaco_alarcon.web import rotas_busca
 
 COOKIE_SESSAO = "ea_sessao"
 COOKIE_CSRF_LOGIN = "ea_csrf"
@@ -27,11 +29,15 @@ HOSTS_LOCAIS = frozenset({"127.0.0.1", "::1", "localhost"})
 
 _PASTA_WEB = Path(str(resources.files("espaco_alarcon.web")))
 templates = Jinja2Templates(directory=str(_PASTA_WEB / "templates"))
+templates.env.filters["milhar"] = lambda n: f"{int(n or 0):,}".replace(",", ".")
+templates.env.filters["data_br"] = lambda d: f"{d[8:10]}/{d[5:7]}/{d[:4]}" if d and len(d) >= 10 else (d or "")
+templates.env.filters["moeda"] = (lambda v: "R$ " + f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                                  if v is not None else "não informado")
 
 # Telas previstas no prompt (seção 15) e a sprint em que cada uma é entregue.
 TELAS = [
     ("painel", "/", "Dashboard", None),
-    ("busca", "/busca", "Busca", "2b"),
+    ("busca", "/busca", "Busca", None),
     ("leads", "/leads", "Leads e pipeline", "6"),
     ("importacao", "/importacao", "Importação", "3"),
     ("fontes", "/fontes", "Status das fontes", None),
@@ -90,6 +96,9 @@ def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
     def csrf_publico_ok(request: Request, enviado: str | None) -> bool:
         cookie = request.cookies.get(COOKIE_CSRF_LOGIN)
         return bool(cookie and enviado and hmac.compare_digest(cookie, enviado))
+
+    web = SimpleNamespace(db=db, sessao_atual=sessao_atual, exigir_csrf=exigir_csrf, render=render, cfg=cfg)
+    rotas_busca.registrar(app, web)
 
     @app.middleware("http")
     async def cabecalhos_seguranca(request: Request, call_next):

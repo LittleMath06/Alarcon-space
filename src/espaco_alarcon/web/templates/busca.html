@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block titulo %}Busca{% endblock %}
+{% block conteudo %}
+<h1>Busca de empresas</h1>
+{% if not base_ok %}
+<p class="aviso info">A base de empresas ainda não foi importada. Vá em <a href="/fontes">Status das fontes</a>.</p>
+{% else %}
+<form method="get" action="/busca" class="cartao filtros">
+  <label class="largo">Nome, nome fantasia ou CNPJ
+    <input name="q" value="{{ f.q }}" placeholder="ex.: chicotes, refrigeração, 12.345.678" autofocus></label>
+  <label>Região
+    <select name="regiao"><option value="">Todas</option>
+      {% for sigla, (nome, _) in regioes.items() %}<option value="{{ sigla }}" {{ "selected" if f.regiao == sigla }}>{{ nome }}</option>{% endfor %}
+    </select></label>
+  <label>UF
+    <select name="uf"><option value="">Todas</option>
+      {% for uf in ufs %}<option {{ "selected" if f.uf == uf }}>{{ uf }}</option>{% endfor %}
+    </select></label>
+  <label>Município
+    <input name="municipio" value="{{ f.municipio }}" list="lista-municipios" placeholder="{{ 'escolha a UF para sugestões' if not f.uf else '' }}">
+    <datalist id="lista-municipios">{% for m in municipios %}<option value="{{ m }}">{% endfor %}</datalist></label>
+  <label class="largo">Segmento
+    <select name="segmento"><option value="">Todos</option>
+      {% for s in segmentos %}<option value="{{ s.id }}" {{ "selected" if f.segmento == s.id }}>{{ s.nome }}</option>{% endfor %}
+    </select></label>
+  <label>CNAE <input name="cnae" value="{{ f.cnae }}" placeholder="ex.: 2945-0/00"></label>
+  <label>Segmento/CNAE como
+    <select name="cnae_tipo">
+      <option value="qualquer">Principal ou secundário</option>
+      <option value="principal" {{ "selected" if f.cnae_tipo == "principal" }}>Somente principal</option>
+    </select></label>
+  <fieldset class="largo"><legend>Porte</legend>
+    {% for cod, nome in portes.items() if cod != "00" %}
+    <label class="opcao"><input type="checkbox" name="porte" value="{{ cod }}" {{ "checked" if cod in f.porte }}> {{ nome }}</label>
+    {% endfor %}</fieldset>
+  <fieldset class="largo"><legend>Mostrar só</legend>
+    <label class="opcao"><input type="checkbox" name="com_email" value="1" {{ "checked" if f.com_email }}> com e-mail</label>
+    <label class="opcao"><input type="checkbox" name="com_telefone" value="1" {{ "checked" if f.com_telefone }}> com telefone</label>
+    <label class="opcao"><input type="checkbox" name="so_matriz" value="1" {{ "checked" if f.so_matriz }}> matrizes</label>
+  </fieldset>
+  <label>Ordenar por
+    <select name="ordem">{% for k, (nome, _) in ordenacoes.items() %}<option value="{{ k }}" {{ "selected" if f.ordem == k }}>{{ nome }}</option>{% endfor %}</select></label>
+  <div class="acoes"><button type="submit" class="botao">Buscar</button> <a href="/busca" class="botao secundario">Limpar</a></div>
+</form>
+
+{% if resultado is none %}
+  <p class="vazio-texto">Escolha pelo menos um filtro para buscar. Dica: comece por um segmento e uma UF.</p>
+{% elif resultado.total == 0 %}
+  <section class="cartao vazio"><p>Nenhuma empresa encontrada com esses filtros.</p></section>
+{% else %}
+  <p class="contagem">{{ resultado.total | milhar }}{% if resultado.total_limitado %}+{% endif %} estabelecimento(s)
+    · página {{ resultado.pagina }} de {{ resultado.paginas | milhar }}</p>
+  <div class="rolagem">
+  <table class="tabela resultados">
+    <thead><tr><th>Empresa</th><th>CNPJ</th><th>Local</th><th>Segmento</th><th>CNAE principal</th><th>Porte</th><th>Contato</th></tr></thead>
+    <tbody>
+    {% for l in resultado.linhas %}
+      <tr>
+        <td><a href="/empresa/{{ l.cnpj }}"><strong>{{ l.razao_social }}</strong></a>
+          {% if l.nome_fantasia %}<br><span class="suave">{{ l.nome_fantasia }}</span>{% endif %}
+          {% if l.matriz_filial == "2" %}<span class="etiqueta">filial</span>{% endif %}</td>
+        <td class="nowrap">{{ l.cnpj_formatado }}
+          <button type="button" class="botao secundario pequeno" data-copiar="{{ l.cnpj_formatado }}" aria-label="Copiar CNPJ">Copiar</button></td>
+        <td>{{ l.municipio_nome or "" }}/{{ l.uf }}</td>
+        <td>{% if l.segmentos %}{{ l.segmentos[0].nome }}{% if not l.segmentos[0].principal %} <span class="suave">(por CNAE secundário)</span>{% endif %}
+              {% if l.segmentos | length > 1 %}<br><span class="suave">+{{ l.segmentos | length - 1 }} outro(s)</span>{% endif %}
+            {% else %}Outros{% endif %}</td>
+        <td><span title="{{ l.cnae_descricao or '' }}">{{ formatar_cnae(l.cnae_principal) }}</span><br><span class="suave">{{ (l.cnae_descricao or "")[:45] }}</span></td>
+        <td>{{ portes.get(l.porte or "", "—") }}</td>
+        <td class="nowrap">{% if l.telefone1 %}☎ {% endif %}{% if l.email %}✉{% endif %}{% if not l.telefone1 and not l.email %}<span class="suave">não localizado</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <nav class="paginacao" aria-label="Páginas">
+    {% if resultado.pagina > 1 %}<a href="{{ link_pagina(1) }}">« primeira</a> <a href="{{ link_pagina(resultado.pagina - 1) }}">‹ anterior</a>{% endif %}
+    <span>página {{ resultado.pagina }} de {{ resultado.paginas | milhar }}</span>
+    {% if resultado.pagina < resultado.paginas %}<a href="{{ link_pagina(resultado.pagina + 1) }}">próxima ›</a>{% endif %}
+  </nav>
+  <p class="dica">Dados cadastrais da Receita Federal. Índice de compatibilidade e linha de produto sugerida chegam na Sprint 4.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

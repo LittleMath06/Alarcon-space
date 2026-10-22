@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block titulo %}{{ e.razao_social }}{% endblock %}
+{% block conteudo %}
+<p><a href="{{ voltar if voltar and '/busca' in voltar else '/busca' }}">‹ voltar para a busca</a></p>
+<h1>{{ e.razao_social }}</h1>
+{% if e.nome_fantasia %}<p class="sub">{{ e.nome_fantasia }}</p>{% endif %}
+
+<section class="cartao">
+  <h2>Identificação</h2>
+  <dl class="dados">
+    <dt>CNPJ</dt><dd><strong>{{ e.cnpj_formatado }}</strong>
+      <button type="button" class="botao secundario pequeno" data-copiar="{{ e.cnpj_formatado }}">Copiar</button>
+      <button type="button" class="botao secundario pequeno" data-copiar="{{ e.cnpj }}">Copiar só números</button>
+      · {{ "Matriz" if e.matriz_filial == "1" else "Filial" }}</dd>
+    <dt>Situação cadastral</dt><dd>{{ e.situacao_descricao }} desde {{ e.data_situacao | data_br }}{% if e.motivo_descricao and e.motivo_situacao != "00" %} ({{ e.motivo_descricao }}){% endif %}</dd>
+    {% if e.situacao_especial %}<dt>Situação especial</dt><dd>{{ e.situacao_especial }} desde {{ e.data_situacao_especial | data_br }}</dd>{% endif %}
+    <dt>Abertura</dt><dd>{{ e.data_inicio | data_br }}</dd>
+    <dt>Natureza jurídica</dt><dd>{{ e.natureza_descricao or e.natureza_juridica or "não informada" }}</dd>
+    <dt>Porte</dt><dd>{{ e.porte_descricao }}</dd>
+    <dt>Capital social</dt><dd>{{ e.capital_social | moeda }}</dd>
+    <dt>Simples / MEI</dt><dd>{% if e.simples %}Simples: {{ "sim" if e.simples.opcao_simples == "S" and not e.simples.data_exclusao_simples else "não" }} ·
+      MEI: {{ "sim" if e.simples.opcao_mei == "S" and not e.simples.data_exclusao_mei else "não" }}{% else %}não informado{% endif %}</dd>
+    {% if e.ente_federativo %}<dt>Ente federativo</dt><dd>{{ e.ente_federativo }}</dd>{% endif %}
+  </dl>
+</section>
+
+<section class="cartao">
+  <h2>Endereço</h2>
+  <p>{{ e.tipo_logradouro or "" }} {{ e.logradouro or "" }}, {{ e.numero or "s/n" }}{% if e.complemento %} — {{ e.complemento }}{% endif %}<br>
+     {{ e.bairro or "" }} · {{ e.municipio_nome or "" }}/{{ e.uf }} · CEP {{ e.cep_formatado }}</p>
+  <p><a href="{{ e.mapa }}" target="_blank" rel="noopener noreferrer" class="botao secundario pequeno">Abrir no mapa</a></p>
+</section>
+
+<section class="cartao">
+  <h2>Contatos</h2>
+  {% if not e.contatos %}<p class="vazio-texto">Nenhum contato localizado na Receita. (Busca no site da empresa: Sprint 5.)</p>
+  {% else %}
+  <table class="tabela">
+    <thead><tr><th>Tipo</th><th>Contato</th><th>Área</th><th>Origem</th><th></th></tr></thead>
+    <tbody>
+    {% for c in e.contatos %}
+      <tr><td>{{ c.tipo }}</td><td class="nowrap"><strong>{{ c.valor }}</strong></td>
+        <td>{{ c.area }}<br><span class="suave">{{ c.determinacao }}</span></td>
+        <td>{{ c.origem }}<br><span class="suave">referência {{ c.data | data_br }}</span></td>
+        <td class="nowrap"><button type="button" class="botao secundario pequeno" data-copiar="{{ c.copiar }}">Copiar</button>
+          <a class="botao secundario pequeno" href="{{ c.link }}">{{ "E-mail" if c.tipo == "E-mail" else "Ligar" }}</a>
+          {% if c.whatsapp %}<a class="botao secundario pequeno" href="{{ c.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
+<section class="cartao">
+  <h2>Atividades (CNAE) e segmentos</h2>
+  <p>{% for s in e.segmentos %}<span class="etiqueta {{ 'ok' if s.principal else '' }}">{{ s.nome }}</span>
+       <span class="suave">via {{ s.cnae[:4] }}-{{ s.cnae[4] }}/{{ s.cnae[5:] }} ({{ "principal" if s.principal else "secundário" }})</span>{% if not loop.last %} · {% endif %}
+     {% else %}<span class="etiqueta">Outros</span>{% endfor %}</p>
+  <p class="dica">Segmentos inferidos automaticamente a partir dos CNAEs da Receita.</p>
+  <table class="tabela">
+    <tbody>{% for c in e.cnaes %}<tr><td class="nowrap">{{ c.formatado }}</td><td>{{ c.descricao or "descrição não disponível" }}</td><td>{{ "principal" if c.principal else "secundário" }}</td></tr>{% endfor %}</tbody>
+  </table>
+</section>
+
+{% if e.filiais %}
+<section class="cartao">
+  <h2>Outros estabelecimentos da mesma empresa ({{ e.filiais | length }}{% if e.filiais | length == 200 %}+{% endif %})</h2>
+  <p class="dica">Somente os que entraram no filtro da importação (ativos e com CNAE do perfil).</p>
+  <table class="tabela"><tbody>
+  {% for f in e.filiais %}<tr><td><a href="/empresa/{{ f.cnpj }}">{{ f.cnpj_formatado }}</a></td><td>{{ "Matriz" if f.matriz_filial == "1" else "Filial" }}</td><td>{{ f.municipio_nome or "" }}/{{ f.uf }}</td><td>{{ f.nome_fantasia or "" }}</td></tr>{% endfor %}
+  </tbody></table>
+</section>
+{% endif %}
+
+<section class="cartao">
+  <h2>Quadro de sócios e administradores</h2>
+  {% if not e.socios %}<p class="vazio-texto">Nenhum sócio informado na base da Receita.</p>{% else %}
+  <p class="dica">Dados pessoais publicados pela Receita (CPF já mascarado na fonte). Uso restrito à prospecção B2B.</p>
+  <table class="tabela">
+    <thead><tr><th>Nome</th><th>Qualificação</th><th>Tipo</th><th>Desde</th><th>Faixa etária</th></tr></thead>
+    <tbody>{% for s in e.socios %}<tr><td>{{ s.nome }}</td><td>{{ s.qualificacao_descricao or "" }}</td><td>{{ s.tipo }}</td><td>{{ s.data_entrada | data_br }}</td><td>{{ s.faixa }}</td></tr>{% endfor %}</tbody>
+  </table>{% endif %}
+</section>
+
+<section class="cartao">
+  <h2>Fontes</h2>
+  <p>Receita Federal — Dados Abertos do CNPJ, competência {{ e.competencia }}, referência {{ e.data_referencia | data_br }}
+    {% if e.fonte_origem == "espelho" %}(obtida de espelho não oficial: {{ e.fonte_url }}){% endif %}.
+    Atualizado no sistema em {{ e.atualizado_em[:10] | data_br }}.</p>
+</section>
+{% endblock %}
