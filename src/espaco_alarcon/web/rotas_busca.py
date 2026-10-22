@@ -35,7 +35,9 @@ def filtros_da_requisicao(request: Request) -> busca.Filtros:
         com_telefone=q.get("com_telefone") == "1",
         so_matriz=q.get("so_matriz") == "1",
         incluir_referencia=q.get("incluir_referencia") == "1",
-        ordem=q.get("ordem", "razao") if q.get("ordem", "razao") in busca.ORDENACOES else "razao",
+        indice_minimo=max(0, min(100, _int(q.get("indice_minimo")) or 0)) or None,
+        linha_segmento=_int(q.get("linha_segmento")),
+        ordem=q.get("ordem", "indice") if q.get("ordem", "indice") in busca.ORDENACOES else "indice",
         pagina=max(1, _int(q.get("pagina"), 1) or 1),
     )
 
@@ -59,7 +61,7 @@ def registrar(app: FastAPI, web) -> None:
 
         return web.render(request, "busca.html", {
             "ativo": "busca", "sessao": sessao, "f": f, "resultado": resultado, "base_ok": base_ok,
-            "segmentos": conn.execute("SELECT id, nome FROM segmento ORDER BY ordem").fetchall(),
+            "segmentos": conn.execute("SELECT id, nome, linha_produto FROM segmento ORDER BY ordem").fetchall(),
             "regioes": busca.REGIOES, "ufs": busca.UFS, "portes": busca.PORTES, "ordenacoes": busca.ORDENACOES,
             "municipios": municipios, "link_pagina": link_pagina, "formatar_cnae": formatar_cnae,
         })

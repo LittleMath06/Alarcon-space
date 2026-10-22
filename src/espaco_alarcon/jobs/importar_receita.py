@@ -570,6 +570,13 @@ class Importador:
         resumo = self._atualizar_resumo(imp_id, contagens)
         self._avisar("atualizando estatísticas do banco (ANALYZE)")
         self.conn.execute("ANALYZE")
+        from espaco_alarcon.domain import indice
+        self.conn.execute("UPDATE receita_importacao SET etapa = 'indice' WHERE id = ?", (imp_id,))
+        self._avisar("calculando o índice de compatibilidade")
+        inicio = time.monotonic()
+        indice.recalcular(self.conn)
+        self._salvar_tempo(imp_id, "indice", time.monotonic() - inicio)
+        self.conn.execute("UPDATE receita_importacao SET etapa = 'concluida' WHERE id = ?", (imp_id,))
         manter = self.conn.execute("SELECT valor FROM configuracao WHERE chave = 'receita_manter_zips'").fetchone()
         if not self.fonte.local and not (manter and manter[0] == "1"):
             imp = self.conn.execute("SELECT competencia FROM receita_importacao WHERE id = ?", (imp_id,)).fetchone()
@@ -668,6 +675,7 @@ NOMES_ETAPAS = {
     "passada2_simples": "Passada 2 — Simples/MEI",
     "limpeza_mei": "Removendo MEIs fora do perfil",
     "passada2_socios": "Passada 2 — sócios",
+    "indice": "Calculando o índice de compatibilidade",
     "concluida": "Concluída",
 }
 

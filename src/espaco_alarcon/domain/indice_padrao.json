@@ -1,0 +1,30 @@
+{
+  "_sobre": "Pesos padrão do índice interno de compatibilidade (0 a 100). Não é probabilidade de compra. Cada sinal vale de 0 a 1; o índice é a média ponderada dos sinais ativos. Ajuste pela tela Configurações > Índice; este arquivo é só o ponto de partida. Explicação em docs/07-indice-de-compatibilidade.md.",
+  "pesos": {
+    "cnae_principal_referencia": 25,
+    "cnaes_em_comum_referencia": 10,
+    "aderencia_linha_produto": 25,
+    "palavras_chave": 10,
+    "porte": 15,
+    "tempo_de_atividade": 5,
+    "regiao_prioritaria": 10
+  },
+  "_justificativa": {
+    "cnae_principal_referencia": "Sinal mais forte de semelhança com quem já compra ou cotou: mesma atividade principal.",
+    "cnaes_em_comum_referencia": "Atividades secundárias em comum com as referências indicam operação parecida, mas são declaradas com menos rigor.",
+    "aderencia_linha_produto": "Quanto o segmento depende das linhas de produto Condvolt (seção 2.1); vale mais quando vem do CNAE principal.",
+    "palavras_chave": "Termos técnicos no nome (chicote, painel, subestação...) reforçam o uso de cabos especiais.",
+    "porte": "Empresas maiores compram volumes compatíveis com fabricante; microempresas pesam menos.",
+    "tempo_de_atividade": "Empresas com mais tempo de atividade tendem a ter demanda estável; peso baixo para não excluir novas.",
+    "regiao_prioritaria": "Só entra no cálculo se o usuário definir UFs prioritárias."
+  },
+  "palavras_chave": ["CHICOTE", "CHICOTES", "PAINEL", "PAINEIS", "QUADRO", "QUADROS", "SUBESTACAO", "SUBESTACOES",
+                     "AUTOMACAO", "ALARME", "INCENDIO", "FERRAMENTA", "FERRAMENTAS", "ELETRODOMESTICO",
+                     "ELETRODOMESTICOS", "SOLAR", "FOTOVOLTAICA", "FOTOVOLTAICO", "CABO", "CABOS", "FIO", "FIOS",
+                     "ELETRICA", "ELETRICO", "ELETRICOS", "ELETRICAS", "ELETROMECANICA", "ILUMINACAO", "LUMINARIAS",
+                     "REFRIGERACAO", "MOTOR", "MOTORES", "TRANSFORMADOR", "TRANSFORMADORES", "ENERGIA",
+                     "ELETRONICA", "ELETRONICOS", "INSTRUMENTACAO", "CONTROLE", "SINALIZACAO", "ENROLAMENTO"],
+  "porte": {"05": 1.0, "03": 0.7, "01": 0.35, "00": 0.2},
+  "tempo_de_atividade_anos": [[5, 1.0], [2, 0.6], [0, 0.3]],
+  "ufs_prioritarias": []
+}

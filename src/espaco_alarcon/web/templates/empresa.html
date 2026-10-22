@@ -7,6 +7,17 @@
 {% if e.referencia %}<p class="aviso info">Empresa da <strong>lista de referência</strong> ({{ e.referencia.origem }}): já atendida ou cotada.
   Não aparece como lead novo. <a href="/importacao/revisar/{{ e.referencia.id }}">Ver conciliação</a></p>{% endif %}
 
+{% if e.indice %}
+<section class="cartao destaque">
+  <h2>Compatibilidade estimada: <span class="indice grande">{{ e.indice.score | round(0) | int }}</span> <span class="suave">de 100</span></h2>
+  {% if e.indice.linha_produto %}<p><strong>Linha de produto sugerida:</strong> {{ e.indice.linha_produto }}</p>{% endif %}
+  <table class="tabela compacta-larga"><tbody>
+    {% for m in e.indice.motivos_lista %}<tr><td>{{ m.nome }}</td><td class="num">+{{ m.pontos }}</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="dica">Índice interno estimado a partir de sinais observáveis; não é probabilidade de compra. Calculado em {{ e.indice.calculado_em[:10] | data_br }}.</p>
+</section>
+{% endif %}
+
 <section class="cartao">
   <h2>Identificação</h2>
   <dl class="dados">

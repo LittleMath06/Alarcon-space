@@ -22,6 +22,7 @@ UFS = sorted(UF_REGIAO)
 PORTES = {"00": "Não informado", "01": "Microempresa", "03": "Pequeno porte", "05": "Demais"}
 SITUACOES = {"01": "Nula", "02": "Ativa", "03": "Suspensa", "04": "Inapta", "08": "Baixada"}
 ORDENACOES = {
+    "indice": ("Maior índice de compatibilidade", "i.score DESC, e.cnpj"),
     "razao": ("Razão social", "p.razao_social, e.cnpj"),
     "municipio": ("Município", "e.uf, m.descricao, p.razao_social"),
     "abertura": ("Mais antigas primeiro", "e.data_inicio, e.cnpj"),
@@ -46,12 +47,14 @@ class Filtros:
     com_telefone: bool = False
     so_matriz: bool = False
     incluir_referencia: bool = False   # empresas já atendidas/cotadas ficam fora por padrão
-    ordem: str = "razao"
+    indice_minimo: int | None = None
+    linha_segmento: int | None = None  # segmento que define a linha de produto sugerida
+    ordem: str = "indice"
     pagina: int = 1
 
     def ativo(self) -> bool:
         return any([self.q, self.regiao, self.uf, self.municipio, self.segmento, self.cnae, self.porte,
-                    self.com_email, self.com_telefone, self.so_matriz])
+                    self.com_email, self.com_telefone, self.so_matriz, self.indice_minimo, self.linha_segmento])
 
 
 @dataclass
@@ -85,7 +88,7 @@ def consulta_fts(texto: str) -> str | None:
     return " AND ".join(f'"{p}"*' for p in palavras[:8])
 
 
-def _where(conn: sqlite3.Connection, f: Filtros) -> tuple[list[str], list]:
+def _where(conn: sqlite3.Connection, f: Filtros, tem_indice: bool) -> tuple[list[str], list]:
     cond, params = [], []
     if f.q:
         cnpj = so_digitos_cnpj(f.q)
@@ -97,12 +100,14 @@ def _where(conn: sqlite3.Connection, f: Filtros) -> tuple[list[str], list]:
             if fts:
                 cond.append("e.cnpj IN (SELECT cnpj FROM busca_fts WHERE busca_fts MATCH ?)")
                 params.append(fts)
+    # Com o índice calculado, filtra a UF pela cópia em indice.uf (índice composto uf+score).
+    col_uf = "i.uf" if tem_indice else "e.uf"
     if f.uf:
-        cond.append("e.uf = ?")
+        cond.append(f"{col_uf} = ?")
         params.append(f.uf)
     elif f.regiao in REGIOES:
         ufs = REGIOES[f.regiao][1]
-        cond.append(f"e.uf IN ({','.join('?' * len(ufs))})")
+        cond.append(f"{col_uf} IN ({','.join('?' * len(ufs))})")
         params.extend(ufs)
     if f.municipio:
         cond.append("e.municipio IN (SELECT codigo FROM municipio WHERE descricao = ?)")
@@ -129,16 +134,25 @@ def _where(conn: sqlite3.Connection, f: Filtros) -> tuple[list[str], list]:
         cond.append("e.telefone1 IS NOT NULL")
     if f.so_matriz:
         cond.append("e.matriz_filial = '1'")
+    if f.indice_minimo:
+        cond.append("i.score >= ?")
+        params.append(f.indice_minimo)
+    if f.linha_segmento:
+        cond.append("i.segmento_id = ?")
+        params.append(f.linha_segmento)
     if not f.incluir_referencia:
         cond.append("e.cnpj_basico NOT IN (SELECT cnpj_basico FROM referencia_empresa)")
     return cond, params
 
 
 def buscar(conn: sqlite3.Connection, f: Filtros, por_pagina: int = POR_PAGINA) -> Resultado:
-    cond, params = _where(conn, f)
+    # Com o índice calculado, JOIN simples deixa o SQLite percorrer a ordem do índice sem ordenar tudo.
+    tem_indice = conn.execute("SELECT 1 FROM indice LIMIT 1").fetchone() is not None
+    cond, params = _where(conn, f, tem_indice)
     where = ("WHERE " + " AND ".join(cond)) if cond else ""
+    juncao_indice = "JOIN" if tem_indice else "LEFT JOIN"
     base = (f"FROM estabelecimento e JOIN empresa p ON p.cnpj_basico = e.cnpj_basico "
-            f"LEFT JOIN municipio m ON m.codigo = e.municipio {where}")
+            f"LEFT JOIN municipio m ON m.codigo = e.municipio {juncao_indice} indice i ON i.cnpj = e.cnpj {where}")
     total = conn.execute(f"SELECT COUNT(*) FROM (SELECT 1 {base} LIMIT {LIMITE_CONTAGEM + 1})", params).fetchone()[0]
     limitado = total > LIMITE_CONTAGEM
     total = min(total, LIMITE_CONTAGEM)
@@ -149,6 +163,7 @@ def buscar(conn: sqlite3.Connection, f: Filtros, por_pagina: int = POR_PAGINA) -
         "SELECT e.cnpj, e.nome_fantasia, e.matriz_filial, e.situacao, e.uf, e.cnae_principal, e.email, "
         "e.ddd1, e.telefone1, e.data_inicio, e.atualizado_em, p.razao_social, p.porte, p.capital_social, "
         "e.cnpj_basico IN (SELECT cnpj_basico FROM referencia_empresa) AS referencia, "
+        "i.score, i.motivos, i.linha_produto, "
         "m.descricao AS municipio_nome, c.descricao AS cnae_descricao "
         f"{base.replace(where, '')} LEFT JOIN cnae c ON c.codigo = e.cnae_principal {where} "
         f"ORDER BY {ordem} LIMIT ? OFFSET ?", params + [por_pagina, (pagina - 1) * por_pagina])]
@@ -175,6 +190,8 @@ def segmentos_de(conn: sqlite3.Connection, cnpjs: list[str]) -> dict[str, list[d
 
 def _anexar_segmentos(conn: sqlite3.Connection, linhas: list[dict]) -> None:
     segs = segmentos_de(conn, [l["cnpj"] for l in linhas])
+    from espaco_alarcon.domain.indice import descrever_motivos
     for l in linhas:
+        l["motivos_resumo"] = descrever_motivos(l.get("motivos"), limite=3)
         l["segmentos"] = segs.get(l["cnpj"], [])
         l["cnpj_formatado"] = formatar_cnpj(l["cnpj"])

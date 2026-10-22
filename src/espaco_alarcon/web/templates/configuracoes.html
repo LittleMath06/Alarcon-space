@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block titulo %}Configurações{% endblock %}
+{% block cabecalho %}{% if recalculando %}<meta http-equiv="refresh" content="10">{% endif %}{% endblock %}
+{% block conteudo %}
+<h1>Configurações</h1>
+<nav class="abas">
+  <a href="#indice">Índice de compatibilidade</a><a href="#perfil">Perfil das referências</a>
+  <a href="#segmentos">Segmentos e linhas de produto</a><a href="#filtro">Filtro da importação</a>
+</nav>
+
+{% set mensagens = {
+  "indice_salvo": ("sucesso", "Pesos salvos. O índice está sendo recalculado em segundo plano (cerca de 2 minutos)."),
+  "recalculando": ("sucesso", "Recálculo iniciado em segundo plano."),
+  "ja_recalculando": ("erro", "Já existe um recálculo em andamento."),
+  "peso_invalido": ("erro", "Valor inválido: use números."),
+  "segmento_salvo": ("sucesso", "Segmento salvo. Recalcule o índice; CNAEs novos só trazem empresas novas após reimportar a base."),
+  "cnae_inexistente": ("erro", "Há CNAE que não existe na tabela oficial. Confira os códigos (formato 0000-0/00)."),
+  "nome_vazio": ("erro", "Informe o nome do segmento."),
+  "filtro_salvo": ("sucesso", "Filtro salvo. Ele vale na próxima importação da base (Status das fontes)."),
+  "filtro_vazio": ("erro", "Escolha pelo menos uma UF e uma situação cadastral."),
+} %}
+{% if msg in mensagens %}<p class="aviso {{ mensagens[msg][0] }}" role="{{ 'alert' if mensagens[msg][0] == 'erro' else 'status' }}">{{ mensagens[msg][1] }}</p>{% endif %}
+
+<section class="cartao" id="indice">
+  <h2>Índice de compatibilidade</h2>
+  <p class="dica">O índice é a média ponderada dos sinais abaixo (cada um vale de 0 a 1), convertida para 0–100.
+    É uma <strong>estimativa interna</strong> para priorizar, não uma probabilidade de compra. Peso 0 desliga o sinal.</p>
+  {% set si = situacao_indice %}
+  <p>{% if recalculando %}<span class="etiqueta andamento">recalculando…</span> esta página se atualiza sozinha.
+     {% elif si.desatualizado %}<span class="etiqueta erro">desatualizado</span> a lista de referência, os pesos ou os segmentos mudaram.
+     {% elif si.ultima %}<span class="etiqueta ok">atualizado</span>{% endif %}
+     {% if si.ultima %}Último cálculo: {{ si.ultima.iniciada_em }} · {{ si.ultima.calculados | milhar }} estabelecimentos · {{ si.ultima.status }}{% endif %}</p>
+  <form method="post" action="/configuracoes/indice" class="formulario">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <table class="tabela"><thead><tr><th>Sinal</th><th>Peso</th><th>Padrão</th><th>Por que este peso</th></tr></thead><tbody>
+    {% for chave, nome in nomes_sinais.items() %}
+      <tr><td><strong>{{ nome }}</strong></td>
+        <td><input type="number" name="peso_{{ chave }}" min="0" max="100" step="1" value="{{ cfg_indice.pesos[chave] | int }}" class="numero"></td>
+        <td>{{ padrao.pesos[chave] }}</td><td class="suave">{{ padrao._justificativa[chave] }}</td></tr>
+    {% endfor %}</tbody></table>
+    <fieldset><legend>UFs prioritárias (o sinal "UF prioritária" só conta se houver alguma marcada)</legend>
+      <div class="grade-ufs">{% for uf in ufs %}<label class="opcao"><input type="checkbox" name="ufs_prioritarias" value="{{ uf }}" {{ "checked" if uf in cfg_indice.ufs_prioritarias }}> {{ uf }}</label>{% endfor %}</div>
+    </fieldset>
+    <label>Palavras técnicas procuradas no nome da empresa (separadas por vírgula)
+      <textarea name="palavras_chave" rows="3">{{ cfg_indice.palavras_chave | join(", ") }}</textarea></label>
+    <div class="acoes">
+      <button type="submit" name="acao" value="salvar" class="botao">Salvar e recalcular</button>
+      <button type="submit" name="acao" value="padrao" class="botao secundario">Restaurar padrão</button>
+    </div>
+  </form>
+  {% if not recalculando %}
+  <form method="post" action="/configuracoes/indice/recalcular" class="linha-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <button type="submit" class="botao secundario">Recalcular agora (sem mudar pesos)</button>
+  </form>{% endif %}
+</section>
+
+<section class="cartao" id="perfil">
+  <h2>Perfil das empresas de referência</h2>
+  {% if not perfil.empresas %}
+    <p class="vazio-texto">Nenhuma empresa da lista de referência conciliada com confiança ainda. Importe a lista em <a href="/importacao">Importação</a>.</p>
+  {% else %}
+  <p>Baseado em <strong>{{ perfil.empresas }}</strong> empresas da lista de referência confirmadas na base (uma por empresa, a matriz).</p>
+  <div class="colunas">
+    <div><h3>CNAEs principais mais frequentes</h3>
+      <table class="tabela compacta-larga"><tbody>{% for c, n in perfil.cnae_principal.items() %}{% if loop.index <= 10 %}
+        <tr><td class="nowrap">{{ formatar_cnae(c) }}</td><td>{{ descricoes.get(c, "")[:60] }}</td><td class="num">{{ n }}</td></tr>{% endif %}{% endfor %}</tbody></table></div>
+    <div><h3>Segmentos</h3>
+      <table class="tabela compacta-larga"><tbody>{% for s, n in perfil.segmentos.items() %}<tr><td>{{ nomes_segmentos.get(s, s) }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</tbody></table>
+      <h3>Porte</h3>
+      <table class="tabela compacta-larga"><tbody>{% for p, n in perfil.porte.items() %}<tr><td>{{ portes.get(p, p) }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</tbody></table>
+      <h3>Região</h3>
+      <table class="tabela compacta-larga"><tbody>{% for r, n in perfil.regiao.items() %}<tr><td>{{ regioes[r][0] if r in regioes else r }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</tbody></table>
+    </div>
+  </div>
+  <p class="dica">Uma empresa pode estar em vários segmentos. Empresas da lista fora dos CNAEs do filtro não entram no perfil.</p>
+  {% endif %}
+</section>
+
+<section class="cartao" id="segmentos">
+  <h2>Segmentos e linhas de produto</h2>
+  <p class="dica"><strong>Aderência</strong> (0 a 1): quanto o segmento depende dos produtos Condvolt. CNAEs no formato 0000-0/00, separados por vírgula.
+    Uma empresa pode estar em vários segmentos (o mesmo CNAE pode estar em mais de um).</p>
+  {% for s in segmentos %}
+  <form method="post" action="/configuracoes/segmento" class="segmento-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="segmento_id" value="{{ s.id }}">
+    <label>Nome <input name="nome" value="{{ s.nome }}" required></label>
+    <label>Aderência <input name="peso" type="number" min="0" max="1" step="0.1" value="{{ s.peso }}" class="numero"></label>
+    <label class="largo">Linha de produto sugerida <input name="linha_produto" value="{{ s.linha_produto }}"></label>
+    <label class="largo">CNAEs <input name="cnaes" value="{{ s.cnaes }}" {{ "disabled" if s.id == 14 }}></label>
+    <div class="acoes"><button type="submit" name="acao" value="salvar" class="botao pequeno">Salvar</button>
+      {% if s.id != 14 %}<button type="submit" name="acao" value="excluir" class="botao secundario pequeno">Excluir</button>{% endif %}</div>
+  </form>
+  {% endfor %}
+  <h3>Novo segmento</h3>
+  <form method="post" action="/configuracoes/segmento" class="segmento-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <label>Nome <input name="nome" required></label>
+    <label>Aderência <input name="peso" type="number" min="0" max="1" step="0.1" value="0.5" class="numero"></label>
+    <label class="largo">Linha de produto sugerida <input name="linha_produto"></label>
+    <label class="largo">CNAEs <input name="cnaes" placeholder="ex.: 2945-0/00, 2733-3/00"></label>
+    <div class="acoes"><button type="submit" class="botao pequeno">Adicionar</button></div>
+  </form>
+</section>
+
+<section class="cartao" id="filtro">
+  <h2>Filtro da importação da base</h2>
+  <p class="dica">Define quais estabelecimentos são trazidos da Receita. Mudanças valem na próxima importação
+    (<a href="/fontes">Status das fontes</a>). Os CNAEs do filtro são os dos segmentos acima.</p>
+  <form method="post" action="/configuracoes/filtro" class="formulario">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <fieldset><legend>UFs</legend>
+      <div class="grade-ufs">{% for uf in ufs %}<label class="opcao"><input type="checkbox" name="ufs" value="{{ uf }}" {{ "checked" if uf in ufs_filtro }}> {{ uf }}</label>{% endfor %}</div></fieldset>
+    <fieldset><legend>Situação cadastral</legend>
+      {% for cod, nome in situacoes.items() %}<label class="opcao"><input type="checkbox" name="situacoes" value="{{ cod }}" {{ "checked" if cod in situacoes_filtro }}> {{ nome }}</label>{% endfor %}</fieldset>
+    <fieldset><legend>Excluir MEI quando a empresa só entra por estes CNAEs (volume muito alto)</legend>
+      <div class="grade-cnaes">{% for f in filtro %}<label class="opcao"><input type="checkbox" name="excluir_mei" value="{{ f.cnae }}" {{ "checked" if f.excluir_mei }}> {{ f.formatado }} <span class="suave">{{ f.descricao[:50] }}</span></label>{% endfor %}</div></fieldset>
+    <div class="acoes"><button type="submit" class="botao">Salvar filtro</button></div>
+  </form>
+</section>
+{% endblock %}

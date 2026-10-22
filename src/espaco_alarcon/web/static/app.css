@@ -117,3 +117,24 @@ a.botao { display: inline-block; text-decoration: none; }
 .abas a.ativo { color: var(--verde-escuro); border-bottom-color: var(--dourado); font-weight: 600; }
 form.inline { display: inline; }
 tr.selecionado { background: var(--sucesso-fundo); }
+
+.indice { display: inline-block; min-width: 2.4rem; text-align: center; padding: .15rem .4rem; border-radius: 6px;
+  background: var(--sucesso-fundo); color: var(--verde-escuro); font-weight: 700; }
+.indice.grande { font-size: 1.4rem; }
+.motivos { font-size: .75rem; }
+.linha-produto { display: inline-block; margin-top: .25rem; font-size: .8rem; color: #7a5b00; background: var(--info-fundo); padding: .1rem .4rem; border-radius: 4px; }
+.cartao.destaque { border-left: 4px solid var(--dourado); }
+.tabela.compacta-larga { max-width: 560px; }
+
+.numero { width: 6rem; }
+textarea { font: inherit; padding: .5rem .6rem; border: 1px solid var(--borda); border-radius: 6px; width: 100%; }
+.grade-ufs { display: grid; grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr)); gap: .25rem; }
+.grade-cnaes { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: .25rem .75rem; }
+.segmento-form { display: grid; grid-template-columns: 1.4fr .5fr 2fr; gap: .5rem .75rem; align-items: end;
+  padding: .75rem 0; border-bottom: 1px solid var(--borda); }
+.segmento-form label { display: flex; flex-direction: column; gap: .2rem; font-size: .8rem; font-weight: 600; }
+.segmento-form .largo { grid-column: span 2; }
+.segmento-form .acoes { display: flex; gap: .4rem; }
+.colunas { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
+.acoes { display: flex; gap: .5rem; flex-wrap: wrap; }
+@media (max-width: 760px) { .segmento-form { grid-template-columns: 1fr; } .segmento-form .largo { grid-column: auto; } }

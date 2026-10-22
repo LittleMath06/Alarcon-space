@@ -127,9 +127,13 @@ def main(argv: list[str] | None = None) -> int:
         from espaco_alarcon.jobs.importar_receita import main as importar
 
         return importar(argv[1:])
+    if acao == "recalcular-indice":
+        from espaco_alarcon.domain.indice import main as recalcular
+
+        return recalcular(argv[1:])
     if acao == "redefinir-senha":
         from espaco_alarcon.redefinir_senha import main as redefinir
 
         return redefinir()
-    print("Uso: espaco-alarcon [iniciar|encerrar|servidor|importar-receita|redefinir-senha]", file=sys.stderr)
+    print("Uso: espaco-alarcon [iniciar|encerrar|servidor|importar-receita|recalcular-indice|redefinir-senha]", file=sys.stderr)
     return 2

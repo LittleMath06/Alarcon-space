@@ -39,6 +39,11 @@
     <label class="opcao"><input type="checkbox" name="so_matriz" value="1" {{ "checked" if f.so_matriz }}> matrizes</label>
     <label class="opcao"><input type="checkbox" name="incluir_referencia" value="1" {{ "checked" if f.incluir_referencia }}> incluir empresas já atendidas/cotadas</label>
   </fieldset>
+  <label>Índice mínimo <input name="indice_minimo" type="number" min="0" max="100" step="5" value="{{ f.indice_minimo or '' }}" placeholder="0 a 100"></label>
+  <label class="largo">Linha de produto sugerida
+    <select name="linha_segmento"><option value="">Todas</option>
+      {% for s in segmentos if s.linha_produto %}<option value="{{ s.id }}" {{ "selected" if f.linha_segmento == s.id }}>{{ s.linha_produto[:70] }}</option>{% endfor %}
+    </select></label>
   <label>Ordenar por
     <select name="ordem">{% for k, (nome, _) in ordenacoes.items() %}<option value="{{ k }}" {{ "selected" if f.ordem == k }}>{{ nome }}</option>{% endfor %}</select></label>
   <div class="acoes"><button type="submit" class="botao">Buscar</button> <a href="/busca" class="botao secundario">Limpar</a></div>
@@ -53,10 +58,12 @@
     · página {{ resultado.pagina }} de {{ resultado.paginas | milhar }}</p>
   <div class="rolagem">
   <table class="tabela resultados">
-    <thead><tr><th>Empresa</th><th>CNPJ</th><th>Local</th><th>Segmento</th><th>CNAE principal</th><th>Porte</th><th>Contato</th></tr></thead>
+    <thead><tr><th class="num">Índice</th><th>Empresa</th><th>CNPJ</th><th>Local</th><th>Segmento e linha sugerida</th><th>CNAE principal</th><th>Porte</th><th>Contato</th></tr></thead>
     <tbody>
     {% for l in resultado.linhas %}
       <tr>
+        <td class="num">{% if l.score is not none %}<span class="indice" title="{% for m in l.motivos_resumo %}{{ m.nome }}: +{{ m.pontos }}&#10;{% endfor %}">{{ l.score | round(0) | int }}</span>
+          <br><span class="suave motivos">{% for m in l.motivos_resumo[:2] %}{{ m.nome.split(" ")[0] | lower }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% else %}—{% endif %}</td>
         <td><a href="/empresa/{{ l.cnpj }}"><strong>{{ l.razao_social }}</strong></a>
           {% if l.nome_fantasia %}<br><span class="suave">{{ l.nome_fantasia }}</span>{% endif %}
           {% if l.matriz_filial == "2" %}<span class="etiqueta">filial</span>{% endif %}
@@ -66,7 +73,8 @@
         <td>{{ l.municipio_nome or "" }}/{{ l.uf }}</td>
         <td>{% if l.segmentos %}{{ l.segmentos[0].nome }}{% if not l.segmentos[0].principal %} <span class="suave">(por CNAE secundário)</span>{% endif %}
               {% if l.segmentos | length > 1 %}<br><span class="suave">+{{ l.segmentos | length - 1 }} outro(s)</span>{% endif %}
-            {% else %}Outros{% endif %}</td>
+            {% else %}Outros{% endif %}
+            {% if l.linha_produto %}<br><span class="linha-produto" title="{{ l.linha_produto }}">{{ l.linha_produto.split(" (")[0] }}</span>{% endif %}</td>
         <td><span title="{{ l.cnae_descricao or '' }}">{{ formatar_cnae(l.cnae_principal) }}</span><br><span class="suave">{{ (l.cnae_descricao or "")[:45] }}</span></td>
         <td>{{ portes.get(l.porte or "", "—") }}</td>
         <td class="nowrap">{% if l.telefone1 %}☎ {% endif %}{% if l.email %}✉{% endif %}{% if not l.telefone1 and not l.email %}<span class="suave">não localizado</span>{% endif %}</td>
@@ -80,7 +88,7 @@
     <span>página {{ resultado.pagina }} de {{ resultado.paginas | milhar }}</span>
     {% if resultado.pagina < resultado.paginas %}<a href="{{ link_pagina(resultado.pagina + 1) }}">próxima ›</a>{% endif %}
   </nav>
-  <p class="dica">Dados cadastrais da Receita Federal. Índice de compatibilidade e linha de produto sugerida chegam na Sprint 4.</p>
+  <p class="dica">O índice é uma <strong>estimativa interna</strong> de compatibilidade (0 a 100), não uma probabilidade de compra. Passe o mouse sobre o número para ver os motivos; os pesos ficam em Configurações.</p>
 {% endif %}
 {% endif %}
 {% endblock %}

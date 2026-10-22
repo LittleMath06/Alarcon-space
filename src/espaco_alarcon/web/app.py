@@ -21,7 +21,8 @@ from espaco_alarcon.audit import configurar_log, log, registrar
 from espaco_alarcon.config import Config
 from espaco_alarcon.db import conectar, migrar, transacao
 from espaco_alarcon.jobs import importar_receita
-from espaco_alarcon.web import rotas_busca, rotas_importacao
+from espaco_alarcon.web import rotas_busca, rotas_config, rotas_importacao
+from espaco_alarcon.jobs import processos
 
 COOKIE_SESSAO = "ea_sessao"
 COOKIE_CSRF_LOGIN = "ea_csrf"
@@ -41,7 +42,7 @@ TELAS = [
     ("leads", "/leads", "Leads e pipeline", "6"),
     ("importacao", "/importacao", "Importação", None),
     ("fontes", "/fontes", "Status das fontes", None),
-    ("configuracoes", "/configuracoes", "Configurações", "4"),
+    ("configuracoes", "/configuracoes", "Configurações", None),
 ]
 
 
@@ -51,7 +52,8 @@ class NaoAutenticado(Exception):
 
 def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
               token_encerrar: str | None = None, ao_encerrar=None,
-              iniciar_importacao=importar_receita.iniciar_em_segundo_plano) -> FastAPI:
+              iniciar_importacao=importar_receita.iniciar_em_segundo_plano,
+              iniciar_processo=processos.iniciar) -> FastAPI:
     caminho_log = configurar_log(cfg.log_dir)
     with _conexao(cfg) as conn:
         aplicadas = migrar(conn)
@@ -100,6 +102,7 @@ def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
     web = SimpleNamespace(db=db, sessao_atual=sessao_atual, exigir_csrf=exigir_csrf, render=render, cfg=cfg)
     rotas_busca.registrar(app, web)
     rotas_importacao.registrar_rotas(app, web)
+    rotas_config.registrar_rotas(app, web, iniciar_processo=iniciar_processo)
 
     @app.middleware("http")
     async def cabecalhos_seguranca(request: Request, call_next):

@@ -107,6 +107,9 @@ def carregar_ficha(conn: sqlite3.Connection, cnpj: str) -> dict | None:
         "q.descricao AS qualificacao_descricao FROM socio s LEFT JOIN qualificacao q ON q.codigo = s.qualificacao "
         "WHERE s.cnpj_basico = ? ORDER BY s.nome", (e["cnpj_basico"],))]
     e["contatos"] = contatos_receita(e, e["data_referencia"])
+    from espaco_alarcon.domain.indice import descrever_motivos
+    ind = conn.execute("SELECT score, motivos, linha_produto, calculado_em FROM indice WHERE cnpj = ?", (cnpj,)).fetchone()
+    e["indice"] = dict(ind) | {"motivos_lista": descrever_motivos(ind["motivos"])} if ind else None
     e["referencia"] = conn.execute(
         "SELECT r.id, r.origem, r.decisao FROM referencia r WHERE r.status = 'confirmado' AND "
         "(r.cnpj_basico = ? OR substr(r.cnpj_informado, 1, 8) = ?) LIMIT 1",

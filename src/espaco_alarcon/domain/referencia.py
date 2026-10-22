@@ -276,6 +276,7 @@ def importar(conn: sqlite3.Connection, pasta_import: Path, arquivo: Path, nome_o
                  manual["observacao"] if manual else None, manual["revisado_em"] if manual else None))
             primeiro.setdefault(norm, int(cur.lastrowid))
     conciliar(conn)
+    _indice_desatualizado(conn)
     return arquivo_id
 
 
@@ -410,6 +411,7 @@ def escolher(conn: sqlite3.Connection, ref_id: int, cnpj_basico: str) -> None:
         conn.execute("UPDATE referencia SET status = 'confirmado', cnpj_basico = ?, cnpj_informado = NULL, "
                      "decisao = 'manual', revisado_em = ? WHERE id = ?", (cnpj_basico, _agora(), ref_id))
     _marcar_pessoa_por_natureza(conn, ref_id)
+    _indice_desatualizado(conn)
 
 
 def rejeitar(conn: sqlite3.Connection, ref_id: int, cnpj_basico: str) -> None:
@@ -420,6 +422,7 @@ def rejeitar(conn: sqlite3.Connection, ref_id: int, cnpj_basico: str) -> None:
         if ref["cnpj_basico"] == cnpj_basico:
             conn.execute("UPDATE referencia SET cnpj_basico = NULL, decisao = 'automatica' WHERE id = ?", (ref_id,))
     conciliar(conn, [ref_id])
+    _indice_desatualizado(conn)
 
 
 def informar_cnpj(conn: sqlite3.Connection, ref_id: int, cnpj: str) -> str:
@@ -432,6 +435,7 @@ def informar_cnpj(conn: sqlite3.Connection, ref_id: int, cnpj: str) -> str:
         conn.execute("UPDATE referencia SET status = 'confirmado', cnpj_basico = ?, cnpj_informado = ?, "
                      "decisao = 'manual', revisado_em = ? WHERE id = ?",
                      (cnpj[:8] if na_base else None, cnpj, _agora(), ref_id))
+    _indice_desatualizado(conn)
     return "na_base" if na_base else "fora_da_base"
 
 
@@ -440,6 +444,7 @@ def marcar_nao_encontrado(conn: sqlite3.Connection, ref_id: int, observacao: str
         conn.execute("UPDATE referencia SET status = 'nao_encontrado', cnpj_basico = NULL, cnpj_informado = NULL, "
                      "decisao = 'manual', observacao = ?, revisado_em = ? WHERE id = ?",
                      (observacao[:300] or None, _agora(), ref_id))
+    _indice_desatualizado(conn)
 
 
 def desfazer(conn: sqlite3.Connection, ref_id: int) -> None:
@@ -447,6 +452,12 @@ def desfazer(conn: sqlite3.Connection, ref_id: int) -> None:
         conn.execute("UPDATE referencia SET decisao = 'automatica', cnpj_informado = NULL, observacao = NULL, "
                      "revisado_em = NULL WHERE id = ?", (ref_id,))
     conciliar(conn, [ref_id])
+    _indice_desatualizado(conn)
+
+
+def _indice_desatualizado(conn: sqlite3.Connection) -> None:
+    from espaco_alarcon.domain.indice import marcar_desatualizado
+    marcar_desatualizado(conn)
 
 
 # ---- relatório -----------------------------------------------------------------------------------
