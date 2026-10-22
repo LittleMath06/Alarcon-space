@@ -16,9 +16,10 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from espaco_alarcon import __version__, auth
-from espaco_alarcon.audit import configurar_log, log
+from espaco_alarcon.audit import configurar_log, log, registrar
 from espaco_alarcon.config import Config
-from espaco_alarcon.db import conectar, migrar
+from espaco_alarcon.db import conectar, migrar, transacao
+from espaco_alarcon.jobs import importar_receita
 
 COOKIE_SESSAO = "ea_sessao"
 COOKIE_CSRF_LOGIN = "ea_csrf"
@@ -33,7 +34,7 @@ TELAS = [
     ("busca", "/busca", "Busca", "2b"),
     ("leads", "/leads", "Leads e pipeline", "6"),
     ("importacao", "/importacao", "Importação", "3"),
-    ("fontes", "/fontes", "Status das fontes", "7"),
+    ("fontes", "/fontes", "Status das fontes", None),
     ("configuracoes", "/configuracoes", "Configurações", "4"),
 ]
 
@@ -43,7 +44,8 @@ class NaoAutenticado(Exception):
 
 
 def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
-              token_encerrar: str | None = None, ao_encerrar=None) -> FastAPI:
+              token_encerrar: str | None = None, ao_encerrar=None,
+              iniciar_importacao=importar_receita.iniciar_em_segundo_plano) -> FastAPI:
     caminho_log = configurar_log(cfg.log_dir)
     with _conexao(cfg) as conn:
         aplicadas = migrar(conn)
@@ -199,12 +201,57 @@ def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
         return resp
 
     @app.get("/", response_class=HTMLResponse)
-    def painel(request: Request, sessao: auth.Sessao = Depends(sessao_atual)):
+    def painel(request: Request, sessao: auth.Sessao = Depends(sessao_atual),
+               conn: sqlite3.Connection = Depends(db)):
+        base = None
+        status = importar_receita.status_receita(conn)
+        if status and status["ultima_concluida"]:
+            q = lambda sql: conn.execute(sql).fetchone()[0]  # noqa: E731
+            base = {
+                "competencia": status["ultima_concluida"],
+                "estabelecimentos": q("SELECT COUNT(*) FROM estabelecimento"),
+                "empresas": q("SELECT COUNT(*) FROM empresa"),
+                "por_uf": conn.execute("SELECT uf, COUNT(*) n FROM estabelecimento GROUP BY uf ORDER BY n DESC"
+                                       " LIMIT 10").fetchall(),
+            }
         return render(request, "painel.html", {
-            "ativo": "painel", "sessao": sessao,
+            "ativo": "painel", "sessao": sessao, "base": base, "status": status,
             "url_local": f"http://localhost:{cfg.porta}/",
             "data_dir": str(cfg.data_dir),
         })
+
+    @app.get("/fontes", response_class=HTMLResponse)
+    def fontes(request: Request, msg: str = "", sessao: auth.Sessao = Depends(sessao_atual),
+               conn: sqlite3.Connection = Depends(db)):
+        config = dict(conn.execute("SELECT chave, valor FROM configuracao").fetchall())
+        rodando = importar_receita.importacao_rodando(cfg)
+        return render(request, "fontes.html", {
+            "ativo": "fontes", "sessao": sessao, "status": importar_receita.status_receita(conn),
+            "rodando": rodando, "config": config, "msg": msg,
+            "caminho_log": str(cfg.log_dir / "importacao-receita.log"),
+        })
+
+    @app.post("/fontes/receita/importar")
+    def fontes_importar(request: Request, csrf_token: str = Form(""), fonte: str = Form("oficial"),
+                        url_espelho: str = Form(""), sessao: auth.Sessao = Depends(sessao_atual),
+                        conn: sqlite3.Connection = Depends(db)):
+        exigir_csrf(sessao, csrf_token)
+        if fonte not in ("oficial", "espelho"):
+            raise HTTPException(400, "Fonte inválida.")
+        url_espelho = url_espelho.strip()
+        if fonte == "espelho" and not url_espelho.startswith("https://"):
+            return RedirectResponse("/fontes?msg=espelho_invalido", status_code=303)
+        if importar_receita.importacao_rodando(cfg):
+            return RedirectResponse("/fontes?msg=ja_rodando", status_code=303)
+        with transacao(conn):
+            for chave, valor in (("receita_fonte", fonte), ("receita_url_espelho", url_espelho)):
+                conn.execute("INSERT INTO configuracao (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE "
+                             "SET valor = excluded.valor, atualizado_em = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')",
+                             (chave, valor))
+            registrar(conn, "importacao_receita_iniciada", usuario_id=sessao.usuario.id, origem=_origem(request),
+                      detalhe=fonte)
+        iniciar_importacao(cfg, fonte, url_espelho if fonte == "espelho" else None)
+        return RedirectResponse("/fontes?msg=iniciada", status_code=303)
 
     def _tela_em_breve(chave: str, titulo: str, sprint: str):
         def handler(request: Request, sessao: auth.Sessao = Depends(sessao_atual)):

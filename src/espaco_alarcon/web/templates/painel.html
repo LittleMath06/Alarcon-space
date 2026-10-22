@@ -4,7 +4,21 @@
 <h1>Olá, {{ sessao.usuario.nome }}</h1>
 <section class="cartao">
   <h2>Situação do sistema</h2>
-  <p class="aviso info">A base de empresas ainda não foi importada. A importação dos Dados Abertos do CNPJ chega na Sprint 2a; até lá não há números para mostrar.</p>
+  {% if base %}
+  <div class="indicadores">
+    <div class="indicador"><span class="valor">{{ "{:,}".format(base.estabelecimentos).replace(",", ".") }}</span><span class="rotulo">estabelecimentos na base</span></div>
+    <div class="indicador"><span class="valor">{{ "{:,}".format(base.empresas).replace(",", ".") }}</span><span class="rotulo">empresas</span></div>
+    <div class="indicador"><span class="valor">{{ base.competencia.competencia }}</span><span class="rotulo">competência da Receita{% if base.competencia.origem == "espelho" %} (espelho){% endif %}</span></div>
+  </div>
+  <h3>Estados com mais estabelecimentos</h3>
+  <table class="tabela compacta"><tbody>
+    {% for linha in base.por_uf %}<tr><td>{{ linha.uf }}</td><td class="num">{{ "{:,}".format(linha.n).replace(",", ".") }}</td></tr>{% endfor %}
+  </tbody></table>
+  {% elif status %}
+  <p class="aviso info">A importação da base da Receita está em andamento ou foi interrompida. Veja em <a href="/fontes">Status das fontes</a>.</p>
+  {% else %}
+  <p class="aviso info">A base de empresas ainda não foi importada. Vá em <a href="/fontes">Status das fontes</a> e clique em "Importar / atualizar agora".</p>
+  {% endif %}
   <dl class="dados">
     <dt>Endereço neste computador</dt>
     <dd><code id="url-local">{{ url_local }}</code>

@@ -100,3 +100,41 @@ def test_html_escapa_entrada(cliente):
     criar_usuario(cliente)
     r = fazer_login(cliente, login="<script>alert(1)</script>")
     assert "<script>alert(1)</script>" not in r.text and "&lt;script&gt;" in r.text
+
+
+def test_fontes_sem_importacao_e_disparo(cfg):
+    from espaco_alarcon.web.app import HOSTS_LOCAIS, criar_app
+    from fastapi.testclient import TestClient
+
+    chamadas = []
+    c = TestClient(criar_app(cfg, hosts_locais=HOSTS_LOCAIS | {"testclient"},
+                             iniciar_importacao=lambda cfg, fonte, url: chamadas.append((fonte, url))),
+                   follow_redirects=False)
+    criar_usuario(c)
+    fazer_login(c)
+    r = c.get("/fontes")
+    assert r.status_code == 200 and "Nenhuma importação feita ainda" in r.text
+    token = csrf(r.text)
+    assert c.post("/fontes/receita/importar", data={"fonte": "oficial"}).status_code == 403
+    r = c.post("/fontes/receita/importar", data={"csrf_token": token, "fonte": "espelho", "url_espelho": "ftp://x"})
+    assert r.headers["location"].endswith("espelho_invalido") and chamadas == []
+    r = c.post("/fontes/receita/importar", data={"csrf_token": token, "fonte": "oficial"})
+    assert r.headers["location"].endswith("iniciada") and chamadas == [("oficial", None)]
+
+
+def test_fontes_e_painel_com_base_importada(cfg, tmp_path):
+    from espaco_alarcon.db import conectar, migrar
+    from espaco_alarcon.jobs.importar_receita import Fonte, Importador
+    from receita_ficticia import gerar
+
+    conn = conectar(cfg.db_path)
+    migrar(conn)
+    Importador(cfg, conn, Fonte(str(gerar(tmp_path / "zips")), "local"), competencia="2026-09").executar()
+    conn.close()
+    c = novo_cliente(cfg)
+    criar_usuario(c)
+    fazer_login(c)
+    r = c.get("/fontes")
+    assert "concluída" in r.text and "Estabelecimentos gravados" in r.text and "Base disponível" in r.text
+    r = c.get("/")
+    assert "estabelecimentos na base" in r.text and "2026-09" in r.text

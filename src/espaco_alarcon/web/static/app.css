@@ -71,3 +71,27 @@ input:focus { outline: 2px solid var(--dourado); border-color: var(--verde); }
   .conteudo { padding: 1rem; }
   .dados { grid-template-columns: 1fr; }
 }
+
+h3 { font-size: 1rem; margin: 1.25rem 0 .5rem; }
+.etiqueta { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .8rem; font-weight: 600; }
+.etiqueta.ok { background: var(--sucesso-fundo); color: var(--verde-escuro); }
+.etiqueta.andamento { background: var(--info-fundo); color: #7a5b00; }
+.etiqueta.erro { background: var(--erro-fundo); color: var(--erro); }
+.texto-erro { color: var(--erro); }
+.progresso-linha { display: flex; align-items: center; gap: .75rem; margin: 1rem 0; }
+progress { flex: 1; height: 1.25rem; accent-color: var(--verde); }
+.tabela { width: 100%; border-collapse: collapse; margin-top: .5rem; font-size: .9rem; }
+.tabela th, .tabela td { text-align: left; padding: .4rem .5rem; border-bottom: 1px solid var(--borda); }
+.tabela .num { text-align: right; font-variant-numeric: tabular-nums; }
+.tabela.compacta { max-width: 320px; }
+details { margin-top: 1rem; }
+summary { cursor: pointer; font-weight: 600; }
+fieldset { border: 1px solid var(--borda); border-radius: 6px; padding: .75rem 1rem; display: flex; flex-direction: column; gap: .5rem; }
+legend { font-weight: 600; padding: 0 .3rem; }
+.formulario label.opcao { flex-direction: row; align-items: center; font-weight: 400; gap: .5rem; }
+.linha-form { margin-top: 1.25rem; max-width: 640px; }
+.vazio-texto { color: var(--texto-suave); }
+.indicadores { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.indicador { background: var(--fundo); border-radius: 8px; padding: 1rem; display: flex; flex-direction: column; }
+.indicador .valor { font-size: 1.6rem; font-weight: 700; color: var(--verde-escuro); }
+.indicador .rotulo { color: var(--texto-suave); font-size: .85rem; }

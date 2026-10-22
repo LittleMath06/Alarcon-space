@@ -2,7 +2,9 @@
 
 | # | Risco | Prob. | Impacto | Mitigação |
 |---|---|---|---|---|
-| R1 | Sessões de desenvolvimento na nuvem não têm acesso aos sites da Receita/IBGE/APIs (bloqueio de rede confirmado em 21/10/2026) | Alta | Alto | Liberar os domínios na configuração de rede do ambiente **ou** rodar o Claude Code no Windows |
+| R1 | O servidor oficial da Receita e o IBGE não respondem ao ambiente de nuvem (provável bloqueio de acesso de fora do Brasil, 22/10/2026) | Certa na nuvem | Médio | Desenvolvimento usa espelho declarado; padrão do sistema continua oficial; confirmar no PC do Paulo (Sprint 8) |
+| R15 | Espelho não oficial pode atrasar, sumir ou alterar arquivos | Média | Médio | Uso opcional e sinalizado na interface; conferência de tamanho e de estrutura (30/7/7/11 colunas) em cada importação |
+| R16 | Mudança de layout da Receita (ex.: sócios PJ só com radical desde 08/2026) | Média | Médio | Contagem de colunas por linha; linhas inválidas contadas e exibidas; valor guardado como publicado |
 | R2 | Build do executável, atalho, Defender, firewall e LAN só testáveis no Windows | Certa | Alto | Sprint 8 obrigatoriamente no Windows; roteiro de teste documentado |
 | R3 | URL/estrutura dos Dados Abertos mudou várias vezes (dadosabertos.rfb → arquivos.receitafederal) | Média | Alto | URL configurável; detector de competências; falha clara no painel de status |
 | R4 | CNPJ alfanumérico (desde jul/2026) | Certa | Alto | CNPJ como TEXT, validador DV do Serpro, testes com CNPJ alfanumérico fictício |

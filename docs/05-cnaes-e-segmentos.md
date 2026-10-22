@@ -1,9 +1,11 @@
 # 05 — CNAEs e segmentos (validação inicial)
 
-> **Status:** revisão feita por conhecimento técnico da CNAE 2.3 em 21/10/2026. A API do IBGE estava
-> bloqueada pela rede do ambiente, então **nenhum código abaixo foi conferido na tabela oficial ainda**.
-> Na Sprint 2a, o sistema carrega o arquivo `Cnaes` da Receita e marca automaticamente qualquer código
-> inexistente. A lista é editável pelo Paulo na interface.
+> **Status (22/10/2026):** todos os 45 códigos abaixo foram **conferidos na tabela oficial** `Cnaes` publicada pela
+> Receita (competência 2026-09, 1.359 subclasses): todos existem e as descrições conferem.
+> As recomendações foram **aplicadas** como padrão (o usuário delegou a decisão) e estão na migração
+> `0002_receita.sql`. A tela de edição de CNAEs/segmentos chega na Sprint 4.
+> 2840-2/00 é "Fabricação de máquinas-ferramenta, peças e acessórios"; ferramentas manuais estão em 2543-8/00
+> (não incluído: em geral não são elétricas).
 
 Legenda: ✅ código e descrição conferem com o esperado · ⚠️ ajuste sugerido · ➕ código sugerido a acrescentar · ❓ encaixe fraco, decidir
 
@@ -110,9 +112,11 @@ Legenda: ✅ código e descrição conferem com o esperado · ⚠️ ajuste suge
 |---|---|---|
 | 4299-5/99 | Outras obras de engenharia civil não especificadas | ❓ amplo |
 
-## Resumo das decisões para o Paulo
+## Decisões aplicadas (22/10/2026)
 
-1. Acrescentar 2823-2/00, 2790-2/02, 4221-9/03, 4221-9/05?
-2. Criar o segmento "Fabricantes de cabos" (2733-3/00)?
-3. Remover 3513-1/00 e 2949-2/01?
-4. Para CNAEs de volume muito alto (4321-5/00, 7112-0/00, 4742-3/00, 4120-4/00): excluir MEI e/ou exigir que seja o CNAE principal?
+1. **Acrescentados** 2823-2/00, 2790-2/02, 4221-9/03 e 4221-9/05.
+2. **Criado** o segmento "Fabricantes de cabos" (2733-3/00), separado de "Material elétrico, painéis e quadros".
+3. **Removidos** 3513-1/00 e 2949-2/01.
+4. **MEI excluído** quando a empresa só entra por CNAEs de volume alto: 4321-5/00, 7112-0/00, 4742-3/00, 4120-4/00 e
+   4299-5/99 (`filtro_cnae.excluir_mei = 1`). Esses CNAEs continuam valendo como principal **ou** secundário.
+5. Filtro inicial: **27 UFs**, somente situação **ativa (02)**. Total: 43 CNAEs distintos em 13 segmentos + "Outros".
