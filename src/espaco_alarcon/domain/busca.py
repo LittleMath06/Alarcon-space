@@ -47,6 +47,10 @@ class Filtros:
     com_telefone: bool = False
     so_matriz: bool = False
     incluir_referencia: bool = False   # empresas já atendidas/cotadas ficam fora por padrão
+    area_contato: str = ""             # ex.: "Compras/Suprimentos" (contatos do site ou manuais)
+    com_site: bool = False
+    ie_status: str = ""                # habilitado | nao_habilitado | nao_localizado | nao_consultado
+    incluir_nao_contatar: bool = False
     indice_minimo: int | None = None
     linha_segmento: int | None = None  # segmento que define a linha de produto sugerida
     ordem: str = "indice"
@@ -54,7 +58,8 @@ class Filtros:
 
     def ativo(self) -> bool:
         return any([self.q, self.regiao, self.uf, self.municipio, self.segmento, self.cnae, self.porte,
-                    self.com_email, self.com_telefone, self.so_matriz, self.indice_minimo, self.linha_segmento])
+                    self.com_email, self.com_telefone, self.so_matriz, self.indice_minimo, self.linha_segmento,
+                    self.area_contato, self.com_site, self.ie_status])
 
 
 @dataclass
@@ -134,6 +139,18 @@ def _where(conn: sqlite3.Connection, f: Filtros, tem_indice: bool) -> tuple[list
         cond.append("e.telefone1 IS NOT NULL")
     if f.so_matriz:
         cond.append("e.matriz_filial = '1'")
+    if f.area_contato:
+        cond.append("e.cnpj_basico IN (SELECT cnpj_basico FROM contato WHERE area = ?)")
+        params.append(f.area_contato)
+    if f.com_site:
+        cond.append("e.cnpj_basico IN (SELECT cnpj_basico FROM site_empresa)")
+    if f.ie_status == "nao_consultado":
+        cond.append("e.cnpj NOT IN (SELECT cnpj FROM info_fiscal)")
+    elif f.ie_status in ("habilitado", "nao_habilitado", "nao_localizado"):
+        cond.append("e.cnpj IN (SELECT cnpj FROM info_fiscal WHERE situacao = ?)")
+        params.append(f.ie_status)
+    if not f.incluir_nao_contatar:
+        cond.append("e.cnpj_basico NOT IN (SELECT cnpj_basico FROM nao_contatar)")
     if f.indice_minimo:
         cond.append("i.score >= ?")
         params.append(f.indice_minimo)

@@ -547,6 +547,8 @@ class Importador:
         with transacao(self.conn):
             obsoletos = self.conn.execute("DELETE FROM estabelecimento WHERE importacao_id != ?", (imp_id,)).rowcount
             self._remover_orfaos()
+            from espaco_alarcon.domain.contatos import aplicar_optout
+            anonimizados = aplicar_optout(self.conn)   # pedidos de exclusão sobrevivem à reimportação
             q = lambda sql: self.conn.execute(sql).fetchone()[0]  # noqa: E731
             contagens = {
                 "estabelecimentos": q("SELECT COUNT(*) FROM estabelecimento"),
@@ -558,6 +560,7 @@ class Importador:
                 "socios": q("SELECT COUNT(*) FROM socio"),
                 "simples": q("SELECT COUNT(*) FROM simples"),
                 "obsoletos_removidos": obsoletos,
+                "socios_anonimizados_optout": anonimizados,
             }
             por_arquivo = self.conn.execute(
                 "SELECT SUM(linhas_lidas), SUM(linhas_invalidas), SUM(caracteres_trocados) "

@@ -138,3 +138,5 @@ textarea { font: inherit; padding: .5rem .6rem; border: 1px solid var(--borda); 
 .colunas { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; }
 .acoes { display: flex; gap: .5rem; flex-wrap: wrap; }
 @media (max-width: 760px) { .segmento-form { grid-template-columns: 1fr; } .segmento-form .largo { grid-column: auto; } }
+.quebra { word-break: break-word; }
+.url { width: 100%; min-width: 14rem; }

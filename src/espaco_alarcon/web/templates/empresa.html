@@ -4,6 +4,21 @@
 <p><a href="{{ voltar if voltar and '/busca' in voltar else '/busca' }}">‹ voltar para a busca</a></p>
 <h1>{{ e.razao_social }}</h1>
 {% if e.nome_fantasia %}<p class="sub">{{ e.nome_fantasia }}</p>{% endif %}
+
+{% set mensagens = {
+  "site_ok": ("sucesso", "Site visitado. Veja os contatos encontrados abaixo."),
+  "site_vazio": ("erro", "Informe o endereço do site."),
+  "site_erro": ("erro", "Não foi possível visitar o site: " ~ detalhe),
+  "contato_ok": ("sucesso", "Contato salvo."), "contato_erro": ("erro", detalhe),
+  "contato_excluido": ("sucesso", "Contato removido."),
+  "api_ok": ("sucesso", "Consulta à BrasilAPI concluída."),
+  "api_nao_encontrado": ("erro", "A BrasilAPI não encontrou este CNPJ."), "api_erro": ("erro", detalhe),
+  "ie_ok": ("sucesso", "Consulta de IE registrada."), "ie_erro": ("erro", detalhe),
+  "lgpd_ok": ("sucesso", "Preferência de contato atualizada."),
+  "optout_ok": ("sucesso", "Dados da pessoa removidos. O pedido será reaplicado nas próximas importações."),
+} %}
+{% if msg in mensagens %}<p class="aviso {{ mensagens[msg][0] }}" role="{{ 'alert' if mensagens[msg][0] == 'erro' else 'status' }}">{{ mensagens[msg][1] }}</p>{% endif %}
+{% if e.nao_contatar %}<p class="aviso erro"><strong>Não contatar:</strong> esta empresa pediu para não ser contatada{% if e.nao_contatar.motivo %} ({{ e.nao_contatar.motivo }}){% endif %}.</p>{% endif %}
 {% if e.referencia %}<p class="aviso info">Empresa da <strong>lista de referência</strong> ({{ e.referencia.origem }}): já atendida ou cotada.
   Não aparece como lead novo. <a href="/importacao/revisar/{{ e.referencia.id }}">Ver conciliação</a></p>{% endif %}
 
@@ -44,24 +59,74 @@
   <p><a href="{{ e.mapa }}" target="_blank" rel="noopener noreferrer" class="botao secundario pequeno">Abrir no mapa</a></p>
 </section>
 
-<section class="cartao">
+<section class="cartao" id="contatos">
   <h2>Contatos</h2>
-  {% if not e.contatos %}<p class="vazio-texto">Nenhum contato localizado na Receita. (Busca no site da empresa: Sprint 5.)</p>
-  {% else %}
-  <table class="tabela">
-    <thead><tr><th>Tipo</th><th>Contato</th><th>Área</th><th>Origem</th><th></th></tr></thead>
+  {% set todos = e.contatos + e.contatos_extras %}
+  {% if not todos %}<p class="vazio-texto">Nenhum contato localizado.</p>{% else %}
+  <div class="rolagem"><table class="tabela">
+    <thead><tr><th>Área</th><th>Tipo</th><th>Contato</th><th>Origem</th><th></th></tr></thead>
     <tbody>
-    {% for c in e.contatos %}
-      <tr><td>{{ c.tipo }}</td><td class="nowrap"><strong>{{ c.valor }}</strong></td>
-        <td>{{ c.area }}<br><span class="suave">{{ c.determinacao }}</span></td>
-        <td>{{ c.origem }}<br><span class="suave">referência {{ c.data | data_br }}</span></td>
+    {% for c in todos | sort(attribute="area") %}
+      <tr><td>{{ c.area }}<br><span class="suave">{{ c.determinacao }}</span></td><td>{{ c.tipo }}</td>
+        <td class="quebra"><strong>{{ c.valor }}</strong></td>
+        <td>{% if c.origem_desc is defined %}{{ c.origem_desc }}{% if c.url_origem %}<br><a href="{{ c.url_origem }}" target="_blank" rel="noopener noreferrer" class="suave">{{ c.url_origem[:60] }}</a>{% endif %}
+            {% else %}{{ c.origem }}{% endif %}<br><span class="suave">em {{ c.data | data_br }}</span></td>
         <td class="nowrap"><button type="button" class="botao secundario pequeno" data-copiar="{{ c.copiar }}">Copiar</button>
-          <a class="botao secundario pequeno" href="{{ c.link }}">{{ "E-mail" if c.tipo == "E-mail" else "Ligar" }}</a>
-          {% if c.whatsapp %}<a class="botao secundario pequeno" href="{{ c.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a>{% endif %}</td></tr>
+          {% if c.tipo in ("E-mail", "Telefone", "Celular/WhatsApp", "Fax") %}<a class="botao secundario pequeno" href="{{ c.link }}">{{ "E-mail" if c.tipo == "E-mail" else "Ligar" }}</a>
+          {% elif c.link %}<a class="botao secundario pequeno" href="{{ c.link }}" target="_blank" rel="noopener noreferrer">Abrir</a>{% endif %}
+          {% if c.whatsapp %}<a class="botao secundario pequeno" href="{{ c.whatsapp }}" target="_blank" rel="noopener noreferrer">WhatsApp</a>{% endif %}
+          {% if c.id is defined %}<form method="post" action="/empresa/{{ e.cnpj }}/contato/{{ c.id }}/excluir" class="inline"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><button class="botao secundario pequeno" title="Remover">×</button></form>{% endif %}</td></tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
   {% endif %}
+
+  <h3>Site da empresa</h3>
+  {% if e.site and e.site.url %}
+    <p>{{ e.site.url }} <span class="suave">({{ "informado por você" if e.site.origem == "usuario" else "deduzido do domínio do e-mail cadastral — confirme se é o site oficial" }})</span>
+      {% if e.site.ultima_coleta %}<br><span class="suave">Última coleta: {{ e.site.ultima_coleta[:10] | data_br }} · {{ e.site.resultado.visitadas | length }} página(s) visitada(s){% if e.site.resultado.bloqueadas_robots %} · {{ e.site.resultado.bloqueadas_robots | length }} bloqueada(s) pelo robots.txt{% endif %}{% if e.site.resultado.erros %} · {{ e.site.resultado.erros | length }} erro(s){% endif %}</span>
+        {% for erro in e.site.resultado.erros[:3] %}<br><span class="suave texto-erro">{{ erro[:160] }}</span>{% endfor %}{% endif %}</p>
+  {% else %}<p class="vazio-texto">Site não localizado (o e-mail cadastral é de provedor gratuito, de contador ou não existe). Se souber o site, informe abaixo.</p>{% endif %}
+  <form method="post" action="/empresa/{{ e.cnpj }}/coletar-site" class="formulario linha-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <label>Endereço do site <input name="url" value="{{ e.site.url if e.site and e.site.url else '' }}" placeholder="www.empresa.com.br"></label>
+    <button type="submit" class="botao">Buscar contatos no site</button>
+  </form>
+  <p class="dica">Visita só páginas públicas do próprio site (início, contato, fale conosco, sobre), respeitando o robots.txt, no máximo 6 páginas, com 1 segundo entre elas. Depende de internet.</p>
+
+  <details><summary>Adicionar contato manualmente</summary>
+  <form method="post" action="/empresa/{{ e.cnpj }}/contato" class="formulario linha-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <label>Tipo <select name="tipo">{% for t in tipos %}<option>{{ t }}</option>{% endfor %}</select></label>
+    <label>Contato <input name="valor" required maxlength="300"></label>
+    <label>Área <select name="area">{% for a in areas %}<option>{{ a }}</option>{% endfor %}</select></label>
+    <button type="submit" class="botao">Salvar contato</button>
+  </form></details>
+</section>
+
+<section class="cartao" id="ie">
+  <h2>Inscrição estadual / ICMS</h2>
+  {% if e.ie %}
+    <p><strong>{{ situacoes_ie[e.ie.situacao] }}</strong>{% if e.ie.ie %} · IE {{ e.ie.ie }}{% endif %} —
+      <span class="etiqueta ok">confirmado pelo usuário em {{ e.ie.data_consulta | data_br }}</span>
+      {% if e.ie.observacao %}<br><span class="suave">{{ e.ie.observacao }}</span>{% endif %}</p>
+  {% else %}<p class="vazio-texto">Não consultado. O sistema não deduz contribuinte/não contribuinte.</p>{% endif %}
+  {% if e.ie_links %}
+  <p>
+    <a href="{{ e.ie_links.url_estadual }}" target="_blank" rel="noopener noreferrer" class="botao" data-copiar-abrir="{{ e.cnpj_formatado }}">Consultar IE/ICMS ({{ e.uf }})</a>
+    <a href="{{ e.ie_links.url_ccc }}" target="_blank" rel="noopener noreferrer" class="botao secundario" data-copiar-abrir="{{ e.cnpj_formatado }}">Consultar no CCC nacional</a>
+  </p>
+  <p class="dica">O botão copia o CNPJ e abre a página oficial (pode pedir CAPTCHA ou login gov.br: o sistema não burla isso). {{ e.ie_links.observacao or "" }}</p>
+  {% endif %}
+  <form method="post" action="/empresa/{{ e.cnpj }}/ie" class="formulario linha-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <label>Resultado <select name="situacao">{% for k, v in situacoes_ie.items() %}<option value="{{ k }}" {{ "selected" if e.ie and e.ie.situacao == k }}>{{ v }}</option>{% endfor %}</select></label>
+    <label>Inscrição estadual <input name="ie" value="{{ e.ie.ie if e.ie and e.ie.ie else '' }}" maxlength="20"></label>
+    <label>Data da consulta <input name="data_consulta" type="date" value="{{ e.ie.data_consulta if e.ie else hoje }}" required></label>
+    <label>Observação <input name="observacao" maxlength="300" value="{{ e.ie.observacao if e.ie and e.ie.observacao else '' }}"></label>
+    <button type="submit" class="botao">Registrar resultado</button>
+  </form>
+  <p class="dica">Benefícios fiscais nunca são afirmados pelo sistema; o enquadramento deve ser validado com a contabilidade.</p>
 </section>
 
 <section class="cartao">
@@ -85,20 +150,44 @@
 </section>
 {% endif %}
 
-<section class="cartao">
+<section class="cartao" id="socios">
   <h2>Quadro de sócios e administradores</h2>
   {% if not e.socios %}<p class="vazio-texto">Nenhum sócio informado na base da Receita.</p>{% else %}
   <p class="dica">Dados pessoais publicados pela Receita (CPF já mascarado na fonte). Uso restrito à prospecção B2B.</p>
-  <table class="tabela">
-    <thead><tr><th>Nome</th><th>Qualificação</th><th>Tipo</th><th>Desde</th><th>Faixa etária</th></tr></thead>
-    <tbody>{% for s in e.socios %}<tr><td>{{ s.nome }}</td><td>{{ s.qualificacao_descricao or "" }}</td><td>{{ s.tipo }}</td><td>{{ s.data_entrada | data_br }}</td><td>{{ s.faixa }}</td></tr>{% endfor %}</tbody>
-  </table>{% endif %}
+  <div class="rolagem"><table class="tabela">
+    <thead><tr><th>Nome</th><th>Qualificação</th><th>Tipo</th><th>Desde</th><th>Faixa etária</th><th></th></tr></thead>
+    <tbody>{% for s in e.socios %}<tr><td>{{ s.nome }}</td><td>{{ s.qualificacao_descricao or "" }}</td><td>{{ s.tipo }}</td><td>{{ s.data_entrada | data_br }}</td><td>{{ s.faixa }}</td>
+      <td>{% if s.identificador == "2" and not s.nome.startswith("[") %}<form method="post" action="/empresa/{{ e.cnpj }}/socio/{{ s.id }}/optout" class="inline" data-confirmar="Remover os dados desta pessoa a pedido dela? Isso vale também para as próximas importações.">
+        <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><button class="botao secundario pequeno">Excluir a pedido</button></form>{% endif %}</td></tr>{% endfor %}</tbody>
+  </table></div>{% endif %}
 </section>
 
-<section class="cartao">
+<section class="cartao" id="fontes">
   <h2>Fontes</h2>
   <p>Receita Federal — Dados Abertos do CNPJ, competência {{ e.competencia }}, referência {{ e.data_referencia | data_br }}
     {% if e.fonte_origem == "espelho" %}(obtida de espelho não oficial: {{ e.fonte_url }}){% endif %}.
     Atualizado no sistema em {{ e.atualizado_em[:10] | data_br }}.</p>
+  {% if e.brasilapi %}
+    <h3>Consulta pontual — BrasilAPI ({{ e.brasilapi.consultado_em[:10] | data_br }})</h3>
+    {% if e.brasilapi.status == "ok" %}<dl class="dados">{% for k, v in e.brasilapi.resumo.items() %}<dt>{{ k }}</dt><dd>{{ v or "não informado" }}</dd>{% endfor %}</dl>
+    {% else %}<p class="vazio-texto">CNPJ não encontrado na BrasilAPI.</p>{% endif %}
+  {% endif %}
+  {% if e.cnpj.isdigit() %}
+  <form method="post" action="/empresa/{{ e.cnpj }}/brasilapi" class="linha-form"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <button type="submit" class="botao secundario">Consultar dados atuais na BrasilAPI</button></form>
+  <p class="dica">Consulta gratuita e pontual (uma por vez, com intervalo); útil para ver mudanças desde a última base mensal.</p>{% endif %}
+</section>
+
+<section class="cartao" id="lgpd">
+  <h2>Privacidade (LGPD)</h2>
+  {% if e.nao_contatar %}
+  <form method="post" action="/empresa/{{ e.cnpj }}/nao-contatar"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="ativo" value="0">
+    <button type="submit" class="botao secundario">Remover marcação "não contatar"</button></form>
+  {% else %}
+  <form method="post" action="/empresa/{{ e.cnpj }}/nao-contatar" class="formulario linha-form"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="ativo" value="1">
+    <label>A empresa pediu para não ser contatada? Motivo (opcional) <input name="motivo" maxlength="300"></label>
+    <button type="submit" class="botao secundario">Marcar "não contatar"</button></form>
+  {% endif %}
+  <p class="dica">Pedidos de exclusão de dados de pessoas: use "Excluir a pedido" no quadro de sócios. Os dados ficam só neste computador.</p>
 </section>
 {% endblock %}

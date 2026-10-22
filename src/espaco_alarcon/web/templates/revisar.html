@@ -11,6 +11,8 @@
 {% elif msg == "cnpj_fora_da_base" %}<p class="aviso info" role="status">CNPJ registrado. Ele não está na base importada (CNAE/UF fora do filtro); a empresa fica na lista de exclusão mesmo assim.</p>
 {% elif msg == "cnpj_invalido" %}<p class="aviso erro" role="alert">{{ detalhe }}</p>
 {% elif msg == "nao_encontrado" %}<p class="aviso sucesso" role="status">Marcado como não encontrado.</p>
+{% elif msg == "api_ok" %}<p class="aviso sucesso" role="status">Consulta à BrasilAPI concluída.</p>
+{% elif msg == "api_erro" %}<p class="aviso erro" role="alert">{{ detalhe }}</p>
 {% elif msg == "desfeito" %}<p class="aviso sucesso" role="status">Decisão desfeita; conciliação automática refeita.</p>{% endif %}
 
 {% if r.pessoa_fisica_provavel %}<p class="aviso info">Este nome parece conter o nome de uma pessoa (empresário individual): trate como dado pessoal (LGPD).</p>{% endif %}
@@ -21,7 +23,13 @@
 <section class="cartao">
   <h2>Associação atual</h2>
   {% if r.cnpj_basico %}<p><strong>{{ r.razao_social }}</strong> — CNPJ básico {{ r.cnpj_basico }}</p>
-  {% elif r.cnpj_informado %}<p>CNPJ informado: <strong>{{ cnpj_informado_fmt }}</strong> (fora da base importada)</p>{% endif %}
+  {% elif r.cnpj_informado %}<p>CNPJ informado: <strong>{{ cnpj_informado_fmt }}</strong> (fora da base importada)</p>
+    {% if consulta_api and consulta_api.status == "ok" %}<dl class="dados">{% for k, v in consulta_api.resumo.items() %}<dt>{{ k }}</dt><dd>{{ v or "não informado" }}</dd>{% endfor %}</dl>
+      <p class="dica">BrasilAPI, consultado em {{ consulta_api.consultado_em[:10] | data_br }}.</p>
+    {% elif consulta_api %}<p class="vazio-texto">A BrasilAPI não encontrou este CNPJ.</p>{% endif %}
+    {% if r.cnpj_informado.isdigit() %}<form method="post" action="/importacao/revisar/{{ r.id }}/brasilapi"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+      <button class="botao secundario pequeno">Conferir este CNPJ na BrasilAPI</button></form>{% endif %}
+  {% endif %}
 </section>
 {% endif %}
 

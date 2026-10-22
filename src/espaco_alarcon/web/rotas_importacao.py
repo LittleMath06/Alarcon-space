@@ -11,6 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from espaco_alarcon import auth
 from espaco_alarcon.audit import registrar
+from espaco_alarcon.connectors import brasilapi
 from espaco_alarcon.domain import referencia as ref
 from espaco_alarcon.domain.busca import PORTES, formatar_cnpj
 from espaco_alarcon.domain.empresas import formatar_cnae
@@ -136,6 +137,7 @@ def registrar_rotas(app: FastAPI, web) -> None:
             "ativo": "importacao", "sessao": sessao, "r": r, "candidatos": candidatos, "status_nomes": STATUS,
             "msg": msg, "duplicados": duplicados, "original": original,
             "cnpj_informado_fmt": formatar_cnpj(r["cnpj_informado"]) if r["cnpj_informado"] else "",
+            "consulta_api": _consulta_api(conn, r["cnpj_informado"]),
             "detalhe": request.query_params.get("detalhe", ""),
         })
 
@@ -176,6 +178,19 @@ def registrar_rotas(app: FastAPI, web) -> None:
                                     status_code=303)
         return _acao(ref_id, f"cnpj_{onde}")
 
+    @app.post("/importacao/revisar/{ref_id}/brasilapi")
+    def acao_brasilapi(ref_id: int, csrf_token: str = Form(""), sessao: auth.Sessao = Depends(web.sessao_atual),
+                       conn: sqlite3.Connection = Depends(web.db)):
+        web.exigir_csrf(sessao, csrf_token)
+        r = conn.execute("SELECT cnpj_informado FROM referencia WHERE id = ?", (ref_id,)).fetchone()
+        if r is None or not r["cnpj_informado"]:
+            raise HTTPException(400, "Nenhum CNPJ informado para consultar.")
+        try:
+            web.consultar_api(conn, r["cnpj_informado"])
+        except brasilapi.ErroConsulta as exc:
+            return RedirectResponse(f"/importacao/revisar/{ref_id}?msg=api_erro&detalhe={_q(str(exc))}", status_code=303)
+        return _acao(ref_id, "api_ok")
+
     @app.post("/importacao/revisar/{ref_id}/nao-encontrado")
     def acao_nao_encontrado(ref_id: int, observacao: str = Form(""), csrf_token: str = Form(""),
                             sessao: auth.Sessao = Depends(web.sessao_atual),
@@ -192,6 +207,16 @@ def registrar_rotas(app: FastAPI, web) -> None:
         _ref_existe(conn, ref_id)
         ref.desfazer(conn, ref_id)
         return _acao(ref_id, "desfeito")
+
+
+def _consulta_api(conn: sqlite3.Connection, cnpj: str | None) -> dict | None:
+    if not cnpj:
+        return None
+    row = conn.execute("SELECT * FROM consulta_cnpj WHERE cnpj = ? AND fonte = 'brasilapi'", (cnpj,)).fetchone()
+    if row is None:
+        return None
+    import json
+    return dict(row) | {"resumo": brasilapi.resumo(json.loads(row["dados"]) if row["dados"] else None)}
 
 
 def _q(texto: str) -> str:

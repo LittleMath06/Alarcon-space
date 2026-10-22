@@ -37,8 +37,16 @@
     <label class="opcao"><input type="checkbox" name="com_email" value="1" {{ "checked" if f.com_email }}> com e-mail</label>
     <label class="opcao"><input type="checkbox" name="com_telefone" value="1" {{ "checked" if f.com_telefone }}> com telefone</label>
     <label class="opcao"><input type="checkbox" name="so_matriz" value="1" {{ "checked" if f.so_matriz }}> matrizes</label>
+    <label class="opcao"><input type="checkbox" name="com_site" value="1" {{ "checked" if f.com_site }}> com site</label>
     <label class="opcao"><input type="checkbox" name="incluir_referencia" value="1" {{ "checked" if f.incluir_referencia }}> incluir empresas já atendidas/cotadas</label>
+    <label class="opcao"><input type="checkbox" name="incluir_nao_contatar" value="1" {{ "checked" if f.incluir_nao_contatar }}> incluir "não contatar"</label>
   </fieldset>
+  <label>Contato da área
+    <select name="area_contato"><option value="">Qualquer</option>
+      {% for a in areas %}<option {{ "selected" if f.area_contato == a }}>{{ a }}</option>{% endfor %}</select></label>
+  <label>IE/ICMS
+    <select name="ie_status"><option value="">Qualquer</option>
+      {% for k, v in ie_status.items() %}<option value="{{ k }}" {{ "selected" if f.ie_status == k }}>{{ v }}</option>{% endfor %}</select></label>
   <label>Índice mínimo <input name="indice_minimo" type="number" min="0" max="100" step="5" value="{{ f.indice_minimo or '' }}" placeholder="0 a 100"></label>
   <label class="largo">Linha de produto sugerida
     <select name="linha_segmento"><option value="">Todas</option>

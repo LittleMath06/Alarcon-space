@@ -58,7 +58,18 @@
 
   window.EspacoAlarcon = { copiar: copiar };
 
+  document.addEventListener("submit", function (ev) {
+    var form = ev.target.closest("[data-confirmar]");
+    if (form && !window.confirm(form.getAttribute("data-confirmar"))) ev.preventDefault();
+  });
+
   document.addEventListener("click", function (ev) {
+    var abrir = ev.target.closest("[data-copiar-abrir]");
+    if (abrir) {
+      // copia o CNPJ e deixa o link abrir normalmente (nova aba)
+      copiar(abrir.getAttribute("data-copiar-abrir"));
+      return;
+    }
     var botao = ev.target.closest("[data-copiar]");
     if (!botao) return;
     ev.preventDefault();

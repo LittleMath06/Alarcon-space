@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sqlite3
 import urllib.parse
@@ -103,13 +104,25 @@ def carregar_ficha(conn: sqlite3.Connection, cnpj: str) -> dict | None:
     e["socios"] = [dict(r) | {"tipo": IDENTIFICADOR_SOCIO.get(r["identificador"] or "", ""),
                               "faixa": FAIXA_ETARIA.get(r["faixa_etaria"] or "", "")}
                    for r in conn.execute(
-        "SELECT s.nome, s.identificador, s.documento, s.data_entrada, s.faixa_etaria, s.representante_nome, "
+        "SELECT s.id, s.nome, s.identificador, s.documento, s.data_entrada, s.faixa_etaria, s.representante_nome, "
         "q.descricao AS qualificacao_descricao FROM socio s LEFT JOIN qualificacao q ON q.codigo = s.qualificacao "
         "WHERE s.cnpj_basico = ? ORDER BY s.nome", (e["cnpj_basico"],))]
     e["contatos"] = contatos_receita(e, e["data_referencia"])
     from espaco_alarcon.domain.indice import descrever_motivos
     ind = conn.execute("SELECT score, motivos, linha_produto, calculado_em FROM indice WHERE cnpj = ?", (cnpj,)).fetchone()
     e["indice"] = dict(ind) | {"motivos_lista": descrever_motivos(ind["motivos"])} if ind else None
+    from espaco_alarcon.domain import contatos as ct
+    e["contatos_extras"] = ct.contatos_extras(conn, e["cnpj_basico"])
+    e["site"] = ct.site_da_empresa(conn, e["cnpj_basico"], e["email"])
+    e["ie"] = conn.execute("SELECT * FROM info_fiscal WHERE cnpj = ?", (cnpj,)).fetchone()
+    e["ie_links"] = ct.links_ie(conn, e["uf"])
+    e["nao_contatar"] = conn.execute("SELECT * FROM nao_contatar WHERE cnpj_basico = ?", (e["cnpj_basico"],)).fetchone()
+    consulta = conn.execute("SELECT * FROM consulta_cnpj WHERE cnpj = ? AND fonte = 'brasilapi'", (cnpj,)).fetchone()
+    if consulta:
+        from espaco_alarcon.connectors.brasilapi import resumo
+        e["brasilapi"] = dict(consulta) | {"resumo": resumo(json.loads(consulta["dados"]) if consulta["dados"] else None)}
+    else:
+        e["brasilapi"] = None
     e["referencia"] = conn.execute(
         "SELECT r.id, r.origem, r.decisao FROM referencia r WHERE r.status = 'confirmado' AND "
         "(r.cnpj_basico = ? OR substr(r.cnpj_informado, 1, 8) = ?) LIMIT 1",

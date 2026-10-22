@@ -10,7 +10,10 @@ from fastapi.responses import HTMLResponse
 
 from espaco_alarcon import auth
 from espaco_alarcon.domain import busca
+from espaco_alarcon.domain.contatos import AREAS, SITUACOES_IE
 from espaco_alarcon.domain.empresas import carregar_ficha, formatar_cnae
+
+IE_STATUS = {**SITUACOES_IE, "nao_consultado": "Não consultado"}
 
 
 def _int(valor: str | None, padrao: int | None = None) -> int | None:
@@ -35,6 +38,10 @@ def filtros_da_requisicao(request: Request) -> busca.Filtros:
         com_telefone=q.get("com_telefone") == "1",
         so_matriz=q.get("so_matriz") == "1",
         incluir_referencia=q.get("incluir_referencia") == "1",
+        area_contato=q.get("area_contato", "") if q.get("area_contato", "") in AREAS else "",
+        com_site=q.get("com_site") == "1",
+        ie_status=q.get("ie_status", "") if q.get("ie_status", "") in IE_STATUS else "",
+        incluir_nao_contatar=q.get("incluir_nao_contatar") == "1",
         indice_minimo=max(0, min(100, _int(q.get("indice_minimo")) or 0)) or None,
         linha_segmento=_int(q.get("linha_segmento")),
         ordem=q.get("ordem", "indice") if q.get("ordem", "indice") in busca.ORDENACOES else "indice",
@@ -64,6 +71,7 @@ def registrar(app: FastAPI, web) -> None:
             "segmentos": conn.execute("SELECT id, nome, linha_produto FROM segmento ORDER BY ordem").fetchall(),
             "regioes": busca.REGIOES, "ufs": busca.UFS, "portes": busca.PORTES, "ordenacoes": busca.ORDENACOES,
             "municipios": municipios, "link_pagina": link_pagina, "formatar_cnae": formatar_cnae,
+            "areas": AREAS[1:], "ie_status": IE_STATUS,
         })
 
     @app.get("/empresa/{cnpj}", response_class=HTMLResponse)
@@ -73,5 +81,9 @@ def registrar(app: FastAPI, web) -> None:
         ficha = carregar_ficha(conn, cnpj) if len(cnpj) == 14 else None
         if ficha is None:
             raise HTTPException(404, "Empresa não encontrada na base importada.")
-        return web.render(request, "empresa.html", {"ativo": "busca", "sessao": sessao, "e": ficha,
-                                                    "voltar": request.headers.get("referer", "")})
+        from espaco_alarcon.domain import contatos as ct
+        return web.render(request, "empresa.html", {
+            "ativo": "busca", "sessao": sessao, "e": ficha, "voltar": request.headers.get("referer", ""),
+            "msg": request.query_params.get("msg", ""), "detalhe": request.query_params.get("detalhe", ""),
+            "areas": ct.AREAS[1:], "tipos": ct.TIPOS, "situacoes_ie": ct.SITUACOES_IE,
+            "hoje": __import__("datetime").date.today().isoformat()})

@@ -60,6 +60,7 @@ def registrar_rotas(app: FastAPI, web, iniciar_processo=processos.iniciar) -> No
             "situacoes_filtro": set(config.get("filtro_situacoes", "").split(",")),
             "perfil": perfil, "descricoes": descricoes, "nomes_segmentos": nomes_segmentos, "portes": PORTES,
             "formatar_cnae": formatar_cnae,
+            "ie_links": conn.execute("SELECT * FROM ie_link ORDER BY uf").fetchall(),
         })
 
     @app.post("/configuracoes/indice")
@@ -153,3 +154,21 @@ def registrar_rotas(app: FastAPI, web, iniciar_processo=processos.iniciar) -> No
             conn.executemany("UPDATE filtro_cnae SET excluir_mei = 1 WHERE cnae = ?", [(c,) for c in excluir_mei])
             registrar(conn, "filtro_importacao_alterado", usuario_id=sessao.usuario.id)
         return ir("filtro_salvo", "filtro")
+
+
+    @app.post("/configuracoes/ie-links")
+    async def salvar_ie_links(request: Request, sessao: auth.Sessao = Depends(web.sessao_atual),
+                              conn: sqlite3.Connection = Depends(web.db)):
+        form = await request.form()
+        web.exigir_csrf(sessao, form.get("csrf_token"))
+        dados = []
+        for uf in UFS:
+            estadual = str(form.get(f"estadual_{uf}", "")).strip()
+            ccc = str(form.get(f"ccc_{uf}", "")).strip()
+            if not re.match(r"^https?://[^\s]+$", estadual) or not re.match(r"^https?://[^\s]+$", ccc):
+                return ir("link_invalido", "ie-links")
+            dados.append((estadual[:500], ccc[:500], str(form.get(f"obs_{uf}", "")).strip()[:300] or None, uf))
+        with transacao(conn):
+            conn.executemany("UPDATE ie_link SET url_estadual = ?, url_ccc = ?, observacao = ? WHERE uf = ?", dados)
+            registrar(conn, "links_ie_alterados", usuario_id=sessao.usuario.id)
+        return ir("links_salvos", "ie-links")

@@ -6,6 +6,7 @@
 <nav class="abas">
   <a href="#indice">Índice de compatibilidade</a><a href="#perfil">Perfil das referências</a>
   <a href="#segmentos">Segmentos e linhas de produto</a><a href="#filtro">Filtro da importação</a>
+  <a href="#ie-links">Links de IE/ICMS</a>
 </nav>
 
 {% set mensagens = {
@@ -18,6 +19,8 @@
   "nome_vazio": ("erro", "Informe o nome do segmento."),
   "filtro_salvo": ("sucesso", "Filtro salvo. Ele vale na próxima importação da base (Status das fontes)."),
   "filtro_vazio": ("erro", "Escolha pelo menos uma UF e uma situação cadastral."),
+  "links_salvos": ("sucesso", "Links de consulta de IE/ICMS salvos."),
+  "link_invalido": ("erro", "Todos os links devem começar com http:// ou https://."),
 } %}
 {% if msg in mensagens %}<p class="aviso {{ mensagens[msg][0] }}" role="{{ 'alert' if mensagens[msg][0] == 'erro' else 'status' }}">{{ mensagens[msg][1] }}</p>{% endif %}
 
@@ -117,5 +120,22 @@
       <div class="grade-cnaes">{% for f in filtro %}<label class="opcao"><input type="checkbox" name="excluir_mei" value="{{ f.cnae }}" {{ "checked" if f.excluir_mei }}> {{ f.formatado }} <span class="suave">{{ f.descricao[:50] }}</span></label>{% endfor %}</div></fieldset>
     <div class="acoes"><button type="submit" class="botao">Salvar filtro</button></div>
   </form>
+</section>
+<section class="cartao" id="ie-links">
+  <h2>Links de consulta de IE/ICMS por UF</h2>
+  <p class="dica">Usados pelo botão "Consultar IE/ICMS" da ficha. O padrão é o portal nacional do SINTEGRA (escolher a UF)
+    e o CCC nacional, que pede login gov.br. Quando validar o link direto da SEFAZ de um estado, cole aqui e anote o resultado.</p>
+  <form method="post" action="/configuracoes/ie-links" class="formulario">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <div class="rolagem"><table class="tabela">
+      <thead><tr><th>UF</th><th>Página estadual (SINTEGRA/SEFAZ)</th><th>CCC</th><th>Observação</th></tr></thead>
+      <tbody>{% for l in ie_links %}<tr><td>{{ l.uf }}</td>
+        <td><input name="estadual_{{ l.uf }}" value="{{ l.url_estadual }}" class="url"></td>
+        <td><input name="ccc_{{ l.uf }}" value="{{ l.url_ccc }}" class="url"></td>
+        <td><input name="obs_{{ l.uf }}" value="{{ l.observacao or '' }}" class="url"></td></tr>{% endfor %}</tbody>
+    </table></div>
+    <div class="acoes"><button type="submit" class="botao">Salvar links</button></div>
+  </form>
+  <p class="dica">Integração automática com certificado digital A1: desativada (opcional). Ver docs/08-contatos-ie-lgpd.md.</p>
 </section>
 {% endblock %}
