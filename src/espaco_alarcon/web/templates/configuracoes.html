@@ -6,7 +6,7 @@
 <nav class="abas">
   <a href="#indice">Índice de compatibilidade</a><a href="#perfil">Perfil das referências</a>
   <a href="#segmentos">Segmentos e linhas de produto</a><a href="#filtro">Filtro da importação</a>
-  <a href="#ie-links">Links de IE/ICMS</a>
+  <a href="#ie-links">Links de IE/ICMS</a><a href="#lan">Rede local</a><a href="#backup">Backup</a>
 </nav>
 
 {% set mensagens = {
@@ -21,6 +21,9 @@
   "filtro_vazio": ("erro", "Escolha pelo menos uma UF e uma situação cadastral."),
   "links_salvos": ("sucesso", "Links de consulta de IE/ICMS salvos."),
   "link_invalido": ("erro", "Todos os links devem começar com http:// ou https://."),
+  "backup_ok": ("sucesso", "Backup criado."), "restaurar_ocupado": ("erro", "Espere a importação ou o recálculo terminar antes de restaurar."),
+  "restaurar_erro": ("erro", "Não foi possível restaurar: " ~ request.query_params.get("detalhe", "")),
+  "lan_salvo": ("sucesso", "Preferência salva. Feche o sistema (Encerrar Sistema) e abra de novo para aplicar."),
 } %}
 {% if msg in mensagens %}<p class="aviso {{ mensagens[msg][0] }}" role="{{ 'alert' if mensagens[msg][0] == 'erro' else 'status' }}">{{ mensagens[msg][1] }}</p>{% endif %}
 
@@ -137,5 +140,36 @@
     <div class="acoes"><button type="submit" class="botao">Salvar links</button></div>
   </form>
   <p class="dica">Integração automática com certificado digital A1: desativada (opcional). Ver docs/08-contatos-ie-lgpd.md.</p>
+</section>
+<section class="cartao" id="lan">
+  <h2>Acesso pela rede local</h2>
+  <p>{% if lan_ativo %}<span class="etiqueta ok">ativado</span>{% else %}<span class="etiqueta">desativado</span>{% endif %}
+    {% if lan_ativo != lan_em_uso %}<span class="etiqueta andamento">reinicie o sistema para aplicar</span>{% endif %}</p>
+  {% if lan_ativo %}
+  <p>Em outro computador ou celular <strong>da mesma rede</strong>, abra:</p>
+  <ul>{% for ip in enderecos_lan %}<li><code>http://{{ ip }}:{{ porta }}/</code> <button type="button" class="botao secundario pequeno" data-copiar="http://{{ ip }}:{{ porta }}/">Copiar</button></li>
+      {% else %}<li class="vazio-texto">Nenhum endereço de rede local encontrado (o computador está conectado?).</li>{% endfor %}</ul>
+  <p class="dica">Libere a porta no Firewall do Windows (só rede Privada) com <code>scripts\liberar-firewall.ps1</code> como administrador.
+    O endereço muda se o roteador der outro IP ao computador: peça uma reserva de DHCP no roteador. Nunca exponha à internet.</p>
+  {% endif %}
+  {% if local %}
+  <form method="post" action="/configuracoes/lan"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <input type="hidden" name="ativo" value="{{ '0' if lan_ativo else '1' }}">
+    <button class="botao secundario">{{ "Desativar acesso pela rede" if lan_ativo else "Ativar acesso pela rede" }}</button></form>
+  {% else %}<p class="dica">Só pode ser alterado no próprio computador onde o sistema está instalado.</p>{% endif %}
+  <p class="dica">Pela rede o acesso é HTTP (sem cadeado): login continua obrigatório e o botão copiar usa o modo alternativo.</p>
+</section>
+
+<section class="cartao" id="backup">
+  <h2>Backup e restauração</h2>
+  <form method="post" action="/configuracoes/backup" class="linha-form"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <button class="botao">Criar backup agora</button></form>
+  <p class="dica">Os backups ficam na pasta de dados (backups). São mantidos os 10 mais recentes. Copie-os para um pendrive ou HD externo de vez em quando.</p>
+  {% if backups %}<div class="rolagem"><table class="tabela"><thead><tr><th>Arquivo</th><th>Criado em</th><th class="num">Tamanho</th><th></th></tr></thead><tbody>
+  {% for b in backups %}<tr><td>{{ b.nome }}</td><td>{{ (b.manifesto.criado_em or "")[:16] | replace("T", " ") }}</td><td class="num">{{ (b.tamanho / 1024 / 1024) | round(1) }} MB</td>
+    <td class="nowrap"><a class="botao secundario pequeno" href="/configuracoes/backup/{{ b.nome }}">Baixar</a>
+      {% if local %}<form method="post" action="/configuracoes/backup/restaurar" class="inline" data-confirmar="Restaurar este backup? O estado atual será guardado antes num backup de segurança, e você precisará entrar de novo.">
+        <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="nome" value="{{ b.nome }}"><button class="botao secundario pequeno">Restaurar</button></form>{% endif %}</td></tr>
+  {% endfor %}</tbody></table></div>{% else %}<p class="vazio-texto">Nenhum backup ainda.</p>{% endif %}
 </section>
 {% endblock %}

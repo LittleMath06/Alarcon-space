@@ -103,7 +103,7 @@ def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
         return bool(cookie and enviado and hmac.compare_digest(cookie, enviado))
 
     web = SimpleNamespace(db=db, sessao_atual=sessao_atual, exigir_csrf=exigir_csrf, render=render, cfg=cfg,
-                          consultar_api=consultar_api)
+                          consultar_api=consultar_api, eh_local=eh_local)
     rotas_busca.registrar(app, web)
     rotas_importacao.registrar_rotas(app, web)
     rotas_config.registrar_rotas(app, web, iniciar_processo=iniciar_processo)

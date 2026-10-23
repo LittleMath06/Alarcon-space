@@ -60,7 +60,13 @@ def aguardar_pronto(cfg: Config, processo: subprocess.Popen | None = None, limit
 
 
 def mostrar_erro(mensagem: str) -> None:
-    print(mensagem, file=sys.stderr)
+    """Mensagem visível mesmo sem terminal: caixa nativa do Windows (ou Tk em outros sistemas)."""
+    if sys.stderr:
+        print(mensagem, file=sys.stderr)
+    if sys.platform == "win32":
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(None, mensagem, "Espaço Alarcon", 0x10)   # ícone de erro
+        return
     try:
         import tkinter
         from tkinter import messagebox
@@ -139,9 +145,31 @@ def main(argv: list[str] | None = None) -> int:
         from espaco_alarcon.jobs.agenda import main_contatos
 
         return main_contatos(argv[1:])
+    if acao == "backup":
+        from espaco_alarcon.domain.backup import criar
+
+        print(criar(cfg.db_path, cfg.data_dir))
+        return 0
+    if acao == "restaurar":
+        from pathlib import Path
+
+        from espaco_alarcon.domain.backup import BackupInvalido, restaurar
+        if len(argv) < 2:
+            print("Uso: espaco-alarcon restaurar <arquivo de backup .zip>", file=sys.stderr)
+            return 2
+        if servidor_ativo(cfg):
+            print("Encerre o sistema antes de restaurar pela linha de comando.", file=sys.stderr)
+            return 1
+        try:
+            r = restaurar(Path(argv[1]), cfg.db_path, cfg.data_dir)
+        except BackupInvalido as exc:
+            print(f"Erro: {exc}", file=sys.stderr)
+            return 1
+        print(f"Restaurado. Backup de segurança do estado anterior: {r['seguranca']}")
+        return 0
     if acao == "redefinir-senha":
         from espaco_alarcon.redefinir_senha import main as redefinir
 
         return redefinir()
-    print("Uso: espaco-alarcon [iniciar|encerrar|servidor|importar-receita|recalcular-indice|verificar-atualizacao|atualizar-contatos|redefinir-senha]", file=sys.stderr)
+    print("Uso: espaco-alarcon [iniciar|encerrar|servidor|importar-receita|recalcular-indice|verificar-atualizacao|atualizar-contatos|backup|restaurar|redefinir-senha]", file=sys.stderr)
     return 2

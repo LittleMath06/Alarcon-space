@@ -14,7 +14,9 @@ from espaco_alarcon.db import transacao
 from espaco_alarcon.domain import indice
 from espaco_alarcon.domain.busca import PORTES, REGIOES, SITUACOES, UFS
 from espaco_alarcon.domain.empresas import formatar_cnae
+from espaco_alarcon.domain import backup
 from espaco_alarcon.jobs import processos
+from espaco_alarcon import rede
 
 
 def _cnaes_do_texto(texto: str) -> list[str]:
@@ -61,6 +63,9 @@ def registrar_rotas(app: FastAPI, web, iniciar_processo=processos.iniciar) -> No
             "perfil": perfil, "descricoes": descricoes, "nomes_segmentos": nomes_segmentos, "portes": PORTES,
             "formatar_cnae": formatar_cnae,
             "ie_links": conn.execute("SELECT * FROM ie_link ORDER BY uf").fetchall(),
+            "backups": backup.listar(web.cfg.data_dir), "local": web.eh_local(request),
+            "lan_ativo": config.get("lan_ativo") == "1", "enderecos_lan": rede.enderecos_locais(),
+            "porta": web.cfg.porta, "lan_em_uso": rede.escutando_na_rede(web.cfg),
         })
 
     @app.post("/configuracoes/indice")
@@ -172,3 +177,51 @@ def registrar_rotas(app: FastAPI, web, iniciar_processo=processos.iniciar) -> No
             conn.executemany("UPDATE ie_link SET url_estadual = ?, url_ccc = ?, observacao = ? WHERE uf = ?", dados)
             registrar(conn, "links_ie_alterados", usuario_id=sessao.usuario.id)
         return ir("links_salvos", "ie-links")
+
+
+    def _so_local(request: Request) -> None:
+        if not web.eh_local(request):
+            raise HTTPException(403, "Esta ação só pode ser feita no próprio computador onde o sistema está instalado.")
+
+    @app.post("/configuracoes/backup")
+    def criar_backup(csrf_token: str = Form(""), sessao: auth.Sessao = Depends(web.sessao_atual),
+                     conn: sqlite3.Connection = Depends(web.db)):
+        web.exigir_csrf(sessao, csrf_token)
+        arquivo = backup.criar(web.cfg.db_path, web.cfg.data_dir)
+        registrar(conn, "backup_criado", usuario_id=sessao.usuario.id, detalhe=arquivo.name)
+        return ir("backup_ok", "backup")
+
+    @app.get("/configuracoes/backup/{nome}")
+    def baixar_backup(nome: str, sessao: auth.Sessao = Depends(web.sessao_atual)):
+        from fastapi.responses import FileResponse
+        alvo = next((b for b in backup.listar(web.cfg.data_dir) if b["nome"] == nome), None)
+        if alvo is None:
+            raise HTTPException(404, "Backup não encontrado.")
+        return FileResponse(web.cfg.data_dir / "backups" / nome, filename=nome)
+
+    @app.post("/configuracoes/backup/restaurar")
+    def restaurar_backup(request: Request, nome: str = Form(""), csrf_token: str = Form(""),
+                         sessao: auth.Sessao = Depends(web.sessao_atual), conn: sqlite3.Connection = Depends(web.db)):
+        web.exigir_csrf(sessao, csrf_token)
+        _so_local(request)
+        from espaco_alarcon.jobs.importar_receita import importacao_rodando
+        if importacao_rodando(web.cfg) or processos.rodando(web.cfg, "recalcular-indice"):
+            return ir("restaurar_ocupado", "backup")
+        alvo = next((b for b in backup.listar(web.cfg.data_dir) if b["nome"] == nome), None)
+        if alvo is None:
+            raise HTTPException(404, "Backup não encontrado.")
+        try:
+            backup.restaurar(web.cfg.data_dir / "backups" / nome, web.cfg.db_path, web.cfg.data_dir)
+        except backup.BackupInvalido as exc:
+            return RedirectResponse(f"/configuracoes?msg=restaurar_erro&detalhe={exc}#backup", status_code=303)
+        registrar(conn, "backup_restaurado", origem="local", detalhe=nome)
+        return RedirectResponse("/login?msg=restaurado", status_code=303)
+
+    @app.post("/configuracoes/lan")
+    def alternar_lan(request: Request, ativo: str = Form("0"), csrf_token: str = Form(""),
+                     sessao: auth.Sessao = Depends(web.sessao_atual), conn: sqlite3.Connection = Depends(web.db)):
+        web.exigir_csrf(sessao, csrf_token)
+        _so_local(request)
+        _salvar_config(conn, "lan_ativo", "1" if ativo == "1" else "0")
+        registrar(conn, "modo_lan_" + ("ativado" if ativo == "1" else "desativado"), usuario_id=sessao.usuario.id)
+        return ir("lan_salvo", "lan")

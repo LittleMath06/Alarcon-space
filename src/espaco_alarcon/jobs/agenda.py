@@ -92,7 +92,16 @@ def sites_a_revisitar(conn: sqlite3.Connection) -> list[sqlite3.Row]:
         (f"-{DIAS_CONTATOS} days", MAX_SITES_POR_RODADA)).fetchall()
 
 
-ACOES = {"verificar_receita": verificar_receita, "atualizar_contatos": atualizar_contatos}
+def backup_semanal(cfg: Config, conn: sqlite3.Connection) -> tuple[str, str]:
+    from espaco_alarcon.domain.backup import criar
+    from espaco_alarcon.jobs.importar_receita import importacao_rodando
+    if importacao_rodando(cfg):
+        return "nada_a_fazer", "importação em andamento: backup adiado"
+    arquivo = criar(cfg.db_path, cfg.data_dir, motivo="automatico")
+    return "ok", f"{arquivo.name} ({arquivo.stat().st_size / 1024 / 1024:.0f} MB)"
+
+
+ACOES = {"verificar_receita": verificar_receita, "atualizar_contatos": atualizar_contatos, "backup": backup_semanal}
 
 
 # ---- agenda ------------------------------------------------------------------------------------
@@ -107,7 +116,7 @@ def executar_pendentes(cfg: Config, conn: sqlite3.Connection, agora: datetime | 
         return feitas
     for t in conn.execute("SELECT * FROM agenda WHERE ativo = 1").fetchall():
         vencida = t["proxima_execucao"] is None or t["proxima_execucao"] <= _iso(agora)
-        if not (forcar == t["tarefa"] or (not forcar and vencida)):
+        if not (forcar == t["tarefa"] or (not forcar and vencida)) or t["tarefa"] not in acoes:
             continue
         try:
             status, resultado = acoes[t["tarefa"]](cfg, conn)
