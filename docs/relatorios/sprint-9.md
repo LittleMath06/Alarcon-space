@@ -16,7 +16,7 @@
 
 ## Resultado dos testes
 
-105 testes automatizados aprovados (Linux, Python 3.13). Testes manuais no navegador (Chromium) e com a base real ao
+102 testes automatizados aprovados (Linux, Python 3.13). Testes manuais no navegador (Chromium) e com a base real ao
 longo das sprints. Nenhum teste foi declarado aprovado sem execução.
 
 ## Limitações conhecidas

@@ -38,7 +38,7 @@ Em 23/10/2026, com o servidor no ar e a tarefa vencida, **sem nenhuma ação man
 
 ## Testes automatizados
 
-105 testes no total (novos: novas/alteradas/removidas com campos, lead preservado e reintegrado, base antiga sem
+102 testes no total (novos: novas/alteradas/removidas com campos, lead preservado e reintegrado, base antiga sem
 assinatura não gera falsos alertas, MEI removido não conta como "nova", decisões da verificação, falha com nova tentativa
 em 1 h, tarefa atrasada após dias desligado, desativar/forçar, tela e CSRF, leitura do compartilhamento Nextcloud).
 
