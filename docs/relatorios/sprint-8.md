@@ -12,7 +12,7 @@
 - `scripts\build.ps1` (roda os testes antes), `liberar-firewall.ps1` (só perfil Privado, só a porta), `criar-atalho.ps1`.
 - Launcher mostra erro em caixa nativa do Windows com o caminho do log.
 - **Modo LAN** ligado pela tela (só do próprio PC), endereços da rede exibidos, aviso de reinício.
-- **Backup/restauração**: backup consistente com o sistema aberto, manifesto, retenção de 10, backup semanal;
+- **Backup/restauração**: backup consistente com o sistema aberto, manifesto, retenção de 3 (alterado em 23/10/2026; era 10), backup semanal;
   restauração validada (integridade e versão do esquema), com backup de segurança antes, só do próprio PC; também por
   linha de comando.
 - Importação de arquivos pela interface (desde a Sprint 3).

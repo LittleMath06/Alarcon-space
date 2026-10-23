@@ -19,7 +19,7 @@ from pathlib import Path
 from espaco_alarcon import __version__
 from espaco_alarcon.db import conectar, migrar, versao_atual
 
-BACKUPS_MANTIDOS = 10
+BACKUPS_MANTIDOS = 3   # cada backup da base completa ocupa ~1,1 GB
 NOME_BANCO = "espaco-alarcon.db"
 MAX_DESCOMPACTADO = 100 * 1024**3
 

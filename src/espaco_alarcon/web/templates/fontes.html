@@ -40,7 +40,7 @@
 <section class="cartao">
   <h2>Base da Receita Federal — Dados Abertos do CNPJ</h2>
   {% if not status %}
-    <p class="aviso info">Nenhuma importação feita ainda. A primeira importação baixa cerca de 8,6 GB e leva de 20 minutos a algumas horas, conforme a internet e o computador. Precisa de pelo menos 15 GB livres.</p>
+    <p class="aviso info">Nenhuma importação feita ainda. A primeira importação baixa cerca de 8 GB (um arquivo por vez, apagado logo depois de processado) e leva de 30 minutos a algumas horas, conforme a internet e o computador. Precisa de cerca de 8 GB livres; depois a base ocupa uns 5 GB.</p>
   {% else %}
     {% set imp = status.importacao %}
     {% if status.ultima_concluida %}

@@ -100,14 +100,18 @@ Uso previsto (Sprint 5): só para atualizar um CNPJ específico, fila com no má
 Sem mudança desde a Sprint 0: CCC/SVRS e SINTEGRAs exigem CAPTCHA e/ou login gov.br. Fluxo manual facilitado na
 Sprint 5; tabela de links por UF a validar no Windows.
 
-## 5. Espaço em disco (atualizado com medições)
+## 5. Espaço em disco (medido na base real, 23/10/2026)
 
 | Item | Valor |
 |---|---|
-| ZIPs de uma competência | 7,3 GB (apagados ao fim da importação, salvo se `receita_manter_zips = 1`) |
-| Descompactar | Não é necessário (leitura direta do ZIP) |
-| Banco filtrado | ver relatório da Sprint 2a |
-| Exigido pelo sistema antes de baixar | tamanho dos ZIPs que faltam + 5 GB |
+| Programa instalado | ~60 MB |
+| Banco com a base do Brasil inteiro (com índice e busca textual) | ~4,7 GB (permanente) |
+| ZIPs da Receita | 7,8 GB no total, mas **baixados e apagados um por vez**: o maior (Estabelecimentos0) tem ~2,3 GB |
+| Backup | ~1,1 GB cada; o sistema guarda os **3** mais recentes |
+| Exigido antes da importação | maior arquivo pendente + 5 GB (≈ **7,3 GB livres**); antes de cada download, o arquivo + 1 GB |
+| No dia a dia | ~5 GB do banco + até ~3,3 GB de backups |
+
+Sem espaço suficiente, a importação não começa e avisa quanto falta; o restante do sistema funciona normalmente.
 
 ## Fontes consultadas
 

@@ -132,3 +132,58 @@ def test_link_de_compartilhamento_nextcloud():
         "https://arquivos.receitafederal.gov.br/public.php/webdav/2026-10/"
     assert receita.compartilhamento("https://espelho.invalid/arquivos/") is None
     assert receita.url_pasta("https://espelho.invalid/arquivos", "2026-09-14") == "https://espelho.invalid/arquivos/2026-09-14/"
+
+
+def _fonte_remota_falsa(monkeypatch, pasta_origem, livre=100 * 1024**3):
+    """Simula a Receita: 'baixar' copia da pasta fictícia e registra quantos ZIPs havia no disco a cada download."""
+    import shutil
+    from espaco_alarcon.connectors import receita
+    picos = []
+
+    def listar(url, comp):
+        return [receita.ArquivoRemoto(n + ".zip", f"https://receita.invalid/{n}.zip",
+                                      (pasta_origem / f"{n}.zip").stat().st_size) for n in receita.TODOS_ARQUIVOS]
+
+    def baixar(arquivo, destino, progresso=None):
+        destino.parent.mkdir(parents=True, exist_ok=True)
+        picos.append(len(list(destino.parent.glob("*.zip"))))
+        shutil.copy(pasta_origem / arquivo.nome, destino)
+        return destino
+
+    monkeypatch.setattr(receita, "listar_arquivos", listar)
+    monkeypatch.setattr(receita, "competencia_mais_recente", lambda url: "2026-10")
+    monkeypatch.setattr(receita, "baixar", baixar)
+    monkeypatch.setattr(receita, "espaco_livre", lambda pasta: livre)
+    return picos
+
+
+def test_baixa_e_apaga_um_arquivo_por_vez(cfg, conn, tmp_path, monkeypatch):
+    origem = gerar(tmp_path / "origem", extras_estab=30)
+    picos = _fonte_remota_falsa(monkeypatch, origem)
+    fonte = Fonte("https://receita.invalid/", "oficial")
+    with pytest.raises(ImportacaoInterrompida):
+        Importador(cfg, conn, fonte, tamanho_lote=7, falhar_apos_lotes=3).executar()
+    # queda no meio: o ZIP em processamento continua no disco para a retomada
+    pasta = cfg.data_dir / "receita" / "2026-10"
+    assert [p.name for p in pasta.glob("*.zip")] == ["Estabelecimentos0.zip"]
+    resumo = Importador(cfg, conn, fonte, tamanho_lote=7).executar()
+    assert resumo["estabelecimentos"] > 0
+    assert max(picos) == 0                       # nunca havia outro ZIP no disco ao baixar o próximo
+    assert list(pasta.glob("*.zip")) == []       # nada sobra no fim
+    assert len(picos) == len(receita_todos())    # cada arquivo baixado uma única vez
+
+
+def receita_todos():
+    from espaco_alarcon.connectors.receita import TODOS_ARQUIVOS
+    return TODOS_ARQUIVOS
+
+
+def test_espaco_exigido_e_o_maior_arquivo_mais_margem(cfg, conn, tmp_path, monkeypatch):
+    from espaco_alarcon.jobs.importar_receita import MARGEM_DISCO, EspacoInsuficiente
+    origem = gerar(tmp_path / "origem")
+    maior = max(p.stat().st_size for p in origem.glob("*.zip"))
+    _fonte_remota_falsa(monkeypatch, origem, livre=maior + MARGEM_DISCO - 1)
+    with pytest.raises(EspacoInsuficiente, match="maior arquivo"):
+        Importador(cfg, conn, Fonte("https://receita.invalid/", "oficial")).executar()
+    _fonte_remota_falsa(monkeypatch, origem, livre=maior + MARGEM_DISCO + 2 * 1024**3)
+    assert Importador(cfg, conn, Fonte("https://receita.invalid/", "oficial")).executar()["estabelecimentos"] > 0

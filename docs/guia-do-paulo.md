@@ -11,7 +11,7 @@ garantia de compra.
    depois em **Executar assim mesmo**. Isso acontece porque o programa ainda não tem assinatura digital paga; não é vírus.
 3. Siga o instalador. Marque "Criar atalhos na área de trabalho".
    - Marque "Permitir acesso pela rede local" só se for usar o sistema também em outro computador ou celular da casa/escritório.
-4. Precisa de **25 GB livres** no disco para a primeira importação da base.
+4. Precisa de cerca de **8 GB livres** no disco para a primeira importação da base. Depois, o sistema ocupa uns 5 GB, mais até 3 backups de ~1 GB cada.
 
 ## 2. Abrir e fechar
 
@@ -30,7 +30,7 @@ garantia de compra.
 ## 4. Primeira importação da base de empresas
 
 1. Vá em **Status das fontes** e clique em **Importar / atualizar agora** (deixe marcado "Oficial").
-2. O sistema baixa cerca de 8 GB da Receita e separa só as empresas do seu perfil (Brasil inteiro).
+2. O sistema baixa cerca de 8 GB da Receita, **um arquivo por vez** (cada um é apagado logo depois de lido), e guarda só as empresas do seu perfil (Brasil inteiro).
    Leva de 30 minutos a algumas horas, conforme a internet. Você pode continuar usando o computador.
 3. Se a internet cair ou o computador desligar, clique de novo em "Importar / atualizar agora": ele continua de onde parou.
 4. Depois, a cada mês, o sistema confere sozinho se saiu base nova e atualiza.
@@ -73,7 +73,7 @@ marque estados prioritários e clique em **Salvar e recalcular**.
 
 ## 10. Backup (cópia de segurança)
 
-- O sistema faz um backup automático por semana. Para fazer na hora: **Configurações → Backup → Criar backup agora**.
+- O sistema faz um backup automático por semana e guarda os 3 mais recentes (cerca de 1 GB cada). Para fazer na hora: **Configurações → Backup → Criar backup agora**.
 - De vez em quando, copie o arquivo de backup (botão **Baixar**) para um pendrive ou HD externo.
 - Para voltar um backup: **Restaurar** (só no computador onde o sistema está instalado). O estado atual é guardado antes.
 

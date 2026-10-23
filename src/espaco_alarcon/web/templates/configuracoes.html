@@ -164,7 +164,7 @@
   <h2>Backup e restauração</h2>
   <form method="post" action="/configuracoes/backup" class="linha-form"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
     <button class="botao">Criar backup agora</button></form>
-  <p class="dica">Os backups ficam na pasta de dados (backups). São mantidos os 10 mais recentes. Copie-os para um pendrive ou HD externo de vez em quando.</p>
+  <p class="dica">Os backups ficam na pasta de dados (backups). São mantidos os 3 mais recentes (cada um ocupa cerca de 1 GB). Copie-os para um pendrive ou HD externo de vez em quando.</p>
   {% if backups %}<div class="rolagem"><table class="tabela"><thead><tr><th>Arquivo</th><th>Criado em</th><th class="num">Tamanho</th><th></th></tr></thead><tbody>
   {% for b in backups %}<tr><td>{{ b.nome }}</td><td>{{ (b.manifesto.criado_em or "")[:16] | replace("T", " ") }}</td><td class="num">{{ (b.tamanho / 1024 / 1024) | round(1) }} MB</td>
     <td class="nowrap"><a class="botao secundario pequeno" href="/configuracoes/backup/{{ b.nome }}">Baixar</a>

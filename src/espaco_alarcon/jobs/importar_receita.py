@@ -32,7 +32,8 @@ from espaco_alarcon.connectors import receita
 from espaco_alarcon.db import transacao
 
 TAMANHO_LOTE = 5000
-MARGEM_DISCO = 5 * 1024**3       # além dos ZIPs: banco + folga
+MARGEM_DISCO = 5 * 1024**3       # crescimento do banco na primeira importação + folga
+MARGEM_ARQUIVO = 1 * 1024**3     # folga ao baixar cada arquivo
 _RE_DATA_REF = re.compile(r"\.D(\d)(\d{2})(\d{2})\.")
 _RE_CNPJ = re.compile(r"^[0-9A-Z]{12}[0-9]{2}$")
 
@@ -209,7 +210,7 @@ class Importador:
         with trava_exclusiva(self.cfg.data_dir / "receita" / "importacao.lock"):
             imp_id = self._abrir_ou_retomar()
             try:
-                self._baixar_tudo(imp_id)
+                self._verificar_espaco(imp_id)
                 self._etapa(imp_id, "auxiliares", lambda: self._auxiliares(imp_id))
                 self._etapa(imp_id, "passada1_estabelecimentos",
                             lambda: self._grupo(imp_id, "Estabelecimentos", self._lote_estabelecimentos))
@@ -294,7 +295,8 @@ class Importador:
 
     # -- download --
 
-    def _baixar_tudo(self, imp_id: int) -> None:
+    def _verificar_espaco(self, imp_id: int) -> None:
+        """Os ZIPs são baixados e apagados um por vez: basta caber o maior arquivo pendente + a margem do banco."""
         if self.fonte.local:
             return
         imp = self.conn.execute("SELECT competencia FROM receita_importacao WHERE id = ?", (imp_id,)).fetchone()
@@ -304,23 +306,44 @@ class Importador:
         if not pendentes:
             return
         pasta = self._pasta_zips(imp["competencia"])
-        falta = sum((r["tamanho"] or 0) - self._tamanho_parcial(pasta / r["arquivo"]) for r in pendentes)
+        maior = max((r["tamanho"] or 0) - self._tamanho_parcial(pasta / r["arquivo"]) for r in pendentes)
         livre = receita.espaco_livre(pasta)
-        if livre < falta + MARGEM_DISCO:
+        if livre < maior + MARGEM_DISCO:
             raise EspacoInsuficiente(
-                f"Espaço livre insuficiente em {pasta}: {livre / 1024**3:.1f} GB livres, "
-                f"necessários {(falta + MARGEM_DISCO) / 1024**3:.1f} GB (arquivos + 5 GB para o banco).")
-        self.conn.execute("UPDATE receita_importacao SET etapa = 'download' WHERE id = ?", (imp_id,))
+                f"Espaço livre insuficiente em {pasta}: {livre / 1024**3:.1f} GB livres, necessários "
+                f"{(maior + MARGEM_DISCO) / 1024**3:.1f} GB (maior arquivo da Receita + 5 GB para o banco).")
+
+    def _garantir_arquivo(self, imp_id: int, arquivo: str) -> Path:
+        """Baixa o arquivo na hora de processar (se ainda não estiver baixado). Retorna o caminho local."""
+        imp = self.conn.execute("SELECT competencia FROM receita_importacao WHERE id = ?", (imp_id,)).fetchone()
+        caminho = self._pasta_zips(imp["competencia"]) / arquivo
+        if self.fonte.local:
+            return caminho
+        reg = self.conn.execute("SELECT status, tamanho FROM receita_arquivo WHERE importacao_id = ? AND arquivo = ?",
+                                (imp_id, arquivo)).fetchone()
+        if reg["status"] != "pendente" and caminho.exists():
+            return caminho
+        falta = (reg["tamanho"] or 0) - self._tamanho_parcial(caminho)
+        livre = receita.espaco_livre(caminho.parent)
+        if livre < falta + MARGEM_ARQUIVO:
+            raise EspacoInsuficiente(f"Espaço livre insuficiente para baixar {arquivo}: {livre / 1024**3:.1f} GB "
+                                     f"livres, necessários {(falta + MARGEM_ARQUIVO) / 1024**3:.1f} GB.")
+        self._avisar(f"baixando {arquivo}")
         inicio = time.monotonic()
-        url_pasta = receita.url_pasta(self.fonte.url_base, imp["competencia"])
-        auth = receita.cabecalhos(self.fonte.url_base)
-        for r in pendentes:
-            self._avisar(f"baixando {r['arquivo']}")
-            receita.baixar(receita.ArquivoRemoto(r["arquivo"], url_pasta + r["arquivo"], r["tamanho"], auth),
-                           pasta / r["arquivo"])
-            self.conn.execute("UPDATE receita_arquivo SET status = 'baixado', atualizado_em = ? "
-                              "WHERE importacao_id = ? AND arquivo = ?", (_agora(), imp_id, r["arquivo"]))
+        receita.baixar(receita.ArquivoRemoto(arquivo, receita.url_pasta(self.fonte.url_base, imp["competencia"]) + arquivo,
+                                             reg["tamanho"], receita.cabecalhos(self.fonte.url_base)), caminho)
+        self.conn.execute("UPDATE receita_arquivo SET status = 'baixado', atualizado_em = ? "
+                          "WHERE importacao_id = ? AND arquivo = ?", (_agora(), imp_id, arquivo))
         self._salvar_tempo(imp_id, "download", time.monotonic() - inicio)
+        return caminho
+
+    def _descartar_zip(self, caminho: Path) -> None:
+        """Apaga o ZIP já processado (economiza disco), salvo se a configuração mandar manter."""
+        if self.fonte.local:
+            return
+        manter = self.conn.execute("SELECT valor FROM configuracao WHERE chave = 'receita_manter_zips'").fetchone()
+        if not (manter and manter[0] == "1"):
+            caminho.unlink(missing_ok=True)
 
     @staticmethod
     def _tamanho_parcial(destino: Path) -> int:
@@ -343,7 +366,7 @@ class Importador:
             return
         imp = self.conn.execute("SELECT competencia, data_referencia FROM receita_importacao WHERE id = ?",
                                 (imp_id,)).fetchone()
-        caminho = self._pasta_zips(imp["competencia"]) / arquivo
+        caminho = self._garantir_arquivo(imp_id, arquivo)
         if imp["data_referencia"] is None:
             ref = data_referencia(nome_interno(caminho))
             if ref:
@@ -365,6 +388,7 @@ class Importador:
             lidas = self._gravar_lote(imp_id, arquivo, lote, lidas, tratar)
         self.conn.execute("UPDATE receita_arquivo SET status = 'concluido', atualizado_em = ? "
                           "WHERE importacao_id = ? AND arquivo = ?", (_agora(), imp_id, arquivo))
+        self._descartar_zip(caminho)
 
     def _gravar_lote(self, imp_id: int, arquivo: str, lote: list[list[str]], lidas: int,
                      tratar: Callable[[int, list[list[str]]], Contagem]) -> int:
@@ -401,7 +425,8 @@ class Importador:
                                     (imp_id, arquivo)).fetchone()
             if reg["status"] == "concluido":
                 continue
-            linhas = [l for l in ler_zip(self._pasta_zips(imp["competencia"]) / arquivo) if len(l) >= 2]
+            caminho = self._garantir_arquivo(imp_id, arquivo)
+            linhas = [l for l in ler_zip(caminho) if len(l) >= 2]
             with transacao(self.conn):
                 self.conn.executemany(
                     f"INSERT INTO {tabela} (codigo, descricao) VALUES (?, ?) "
@@ -411,6 +436,7 @@ class Importador:
                     "UPDATE receita_arquivo SET status = 'concluido', linhas_lidas = ?, linhas_gravadas = ?, "
                     "atualizado_em = ? WHERE importacao_id = ? AND arquivo = ?",
                     (len(linhas), len(linhas), _agora(), imp_id, arquivo))
+            self._descartar_zip(caminho)
         inexistentes = [r[0] for r in self.conn.execute(
             "SELECT f.cnae FROM filtro_cnae f LEFT JOIN cnae c ON c.codigo = f.cnae "
             "WHERE f.ativo = 1 AND c.codigo IS NULL ORDER BY f.cnae")]
@@ -753,7 +779,7 @@ if __name__ == "__main__":
 # ---- consultas para a interface ------------------------------------------------------------------
 
 NOMES_ETAPAS = {
-    "download": "Baixando arquivos",
+    "download": "Baixando arquivos",  # tempo somado dos downloads (feitos um a um, durante as passadas)
     "auxiliares": "Tabelas auxiliares",
     "passada1_estabelecimentos": "Passada 1 — estabelecimentos",
     "passada2_empresas": "Passada 2 — empresas",

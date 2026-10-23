@@ -114,8 +114,9 @@ Get-PSDrive C | Select-Object Used, Free
 - **Retomada:** cada lote de 5.000 linhas é gravado na mesma transação que atualiza `receita_arquivo.linhas_lidas`;
   ao reiniciar, o arquivo é relido pulando as linhas já processadas. Uma importação `em_andamento` ou `falhou` é
   retomada; outra competência cancela a anterior.
-- **Downloads** em `DATA_DIR\receita\<competência>\` com `.part` + `Range`; tamanho conferido com `Content-Length`;
-  espaço livre exigido = falta baixar + 5 GB. ZIPs apagados ao concluir (configurável).
+- **Downloads** em `DATA_DIR\receita\<competência>\` com `.part` + `Range`; tamanho conferido. Desde 23/10/2026
+  cada ZIP é **baixado na hora de ser processado e apagado ao concluir** (pico ≈ maior arquivo, ~2,3 GB); espaço
+  exigido = maior arquivo pendente + 5 GB. `receita_manter_zips = 1` mantém os ZIPs.
 - **Fonte:** oficial por padrão; espelho só por escolha explícita, registrado em `receita_importacao.origem`.
 - **CNAEs do estabelecimento:** gravados todos (principal + secundários) em `estabelecimento_cnae`, não só os do filtro —
   servem ao perfil ideal e ao índice (Sprint 4).
