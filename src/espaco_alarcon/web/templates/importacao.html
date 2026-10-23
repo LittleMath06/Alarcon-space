@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block titulo %}Importação{% endblock %}
+{% block conteudo %}
+<h1>Lista de referência — clientes já atendidos ou cotados</h1>
+
+{% if msg == "importado" %}<p class="aviso sucesso" role="status">Lista importada e conciliada com a base. Revise as pendências abaixo.</p>
+{% elif msg == "reconciliado" %}<p class="aviso sucesso" role="status">Conciliação refeita (decisões manuais foram mantidas).</p>
+{% elif msg == "erro" %}<p class="aviso erro" role="alert">Não foi possível importar: {{ detalhe }}</p>{% endif %}
+
+<section class="cartao">
+  <h2>Importar arquivo</h2>
+  <p class="dica">Aceita <strong>.txt</strong> (um nome por linha) ou <strong>.xlsx</strong> (aba "Planilha1", coluna "Cliente que já tiveram cotação").
+    O arquivo original nunca é alterado: o sistema guarda uma cópia na pasta de dados. Importar de novo substitui a lista
+    da mesma origem e <strong>mantém as decisões que você já tomou</strong>.</p>
+  <form method="post" action="/importacao/enviar" enctype="multipart/form-data" class="formulario linha-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <label>Arquivo <input type="file" name="arquivo" accept=".txt,.xlsx" required></label>
+    <label>Origem
+      <select name="origem">{% for o in origens %}<option value="{{ o }}">{{ "Lista do Paulo (já atendidos/cotados)" if o == "lista do Paulo" else "Clientes citados na apresentação" }}</option>{% endfor %}</select></label>
+    <button type="submit" class="botao">Importar e conciliar</button>
+  </form>
+  {% if na_pasta %}
+  <h3>Arquivos encontrados na pasta de importação</h3>
+  <p class="dica"><code>{{ pasta_import }}</code></p>
+  <table class="tabela"><tbody>
+  {% for nome, origem in na_pasta %}
+    <tr><td>{{ nome }}</td><td>{{ origem }}</td><td>
+      <form method="post" action="/importacao/pasta">
+        <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+        <input type="hidden" name="nome" value="{{ nome }}"><input type="hidden" name="origem" value="{{ origem }}">
+        <button type="submit" class="botao secundario pequeno">Importar este</button></form></td></tr>
+  {% endfor %}</tbody></table>
+  {% endif %}
+  {% if not base_ok %}<p class="aviso info">A base da Receita ainda não foi importada: a conciliação vai marcar todos como "não encontrado". Importe a base em <a href="/fontes">Status das fontes</a> e depois clique em "Refazer conciliação".</p>{% endif %}
+</section>
+
+{% if rel.linhas %}
+<section class="cartao">
+  <h2>Relatório da conciliação</h2>
+  <div class="indicadores">
+    <div class="indicador"><span class="valor">{{ rel.linhas }}</span><span class="rotulo">linhas processadas</span></div>
+    <div class="indicador"><span class="valor">{{ rel.unicos }}</span><span class="rotulo">nomes únicos</span></div>
+    <div class="indicador"><span class="valor">{{ rel.por_status.get("confirmado", 0) }}</span><span class="rotulo">confirmados</span></div>
+    <div class="indicador"><span class="valor">{{ rel.pendencias }}</span><span class="rotulo">pendências para revisar</span></div>
+  </div>
+  <dl class="dados">
+    {% for chave, nome in status_nomes.items() %}<dt>{{ nome }}</dt><dd>{{ rel.por_status.get(chave, 0) }}</dd>{% endfor %}
+    <dt>Decisões manuais</dt><dd>{{ rel.manuais }}</dd>
+    <dt>Com provável nome de pessoa</dt><dd>{{ rel.pessoa_fisica }} <span class="suave">(tratados como dado pessoal)</span></dd>
+    <dt>CNPJ informado fora da base filtrada</dt><dd>{{ rel.fora_da_base }}</dd>
+    <dt>Empresas excluídas dos leads novos</dt><dd>{{ rel.empresas_excluidas }}</dd>
+    {% for a in rel.arquivos %}<dt>Arquivo ({{ a.origem }})</dt><dd>{{ a.nome_arquivo }} · {{ a.linhas }} linhas · {{ a.codificacao }} · {{ a.importado_em }}
+      {% for e in a.erros %}<br><span class="texto-erro">{{ e }}</span>{% endfor %}</dd>{% endfor %}
+  </dl>
+  <p class="dica">A conciliação só encontra empresas que estão na base importada (CNAEs e UFs do filtro). Para nomes
+    não encontrados, informe o CNPJ manualmente na revisão.</p>
+  <form method="post" action="/importacao/reconciliar"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <button type="submit" class="botao secundario">Refazer conciliação</button></form>
+</section>
+
+<section class="cartao">
+  <h2>Nomes da lista</h2>
+  <nav class="abas">
+    <a href="?status=pendencias" class="{{ 'ativo' if filtro_status == 'pendencias' }}">Pendências ({{ rel.pendencias }})</a>
+    {% for chave, nome in status_nomes.items() %}<a href="?status={{ chave }}" class="{{ 'ativo' if filtro_status == chave }}">{{ nome }} ({{ rel.por_status.get(chave, 0) }})</a>{% endfor %}
+    <a href="?status=todos" class="{{ 'ativo' if filtro_status == 'todos' }}">Todos</a>
+  </nav>
+  {% if not linhas %}<p class="vazio-texto">Nada nesta categoria.</p>{% else %}
+  <table class="tabela">
+    <thead><tr><th>Linha</th><th>Nome na lista</th><th>Situação</th><th>Empresa associada</th><th class="num">Nota</th><th></th></tr></thead>
+    <tbody>
+    {% for l in linhas %}
+      <tr><td>{{ l.linha }}</td>
+        <td>{{ l.nome_original }}{% if l.pessoa_fisica_provavel %} <span class="etiqueta" title="Provável nome de pessoa: dado pessoal">pessoa</span>{% endif %}</td>
+        <td><span class="etiqueta {{ 'ok' if l.status == 'confirmado' else ('erro' if l.status == 'nao_encontrado' else 'andamento') }}">{{ status_nomes[l.status] }}</span>
+          {% if l.decisao == "manual" %}<br><span class="suave">decisão manual</span>{% endif %}</td>
+        <td>{% if l.razao_social %}{{ l.razao_social }}{% elif l.cnpj_informado %}CNPJ informado (fora da base){% else %}<span class="suave">—</span>{% endif %}</td>
+        <td class="num">{{ l.melhor_score | round(0) | int if l.melhor_score is not none else "—" }}</td>
+        <td>{% if l.status != "duplicado" %}<a href="/importacao/revisar/{{ l.id }}" class="botao secundario pequeno">Revisar</a>{% else %}<a href="/importacao/revisar/{{ l.duplicado_de }}" class="suave">ver original</a>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>{% endif %}
+</section>
+{% endif %}
+{% endblock %}

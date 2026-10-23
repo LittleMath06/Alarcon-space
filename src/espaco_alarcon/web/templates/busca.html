@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block titulo %}Busca{% endblock %}
+{% block conteudo %}
+<h1>Busca de empresas</h1>
+{% if not base_ok %}
+<p class="aviso info">A base de empresas ainda não foi importada. Vá em <a href="/fontes">Status das fontes</a>.</p>
+{% else %}
+<form method="get" action="/busca" class="cartao filtros">
+  <label class="largo">Nome, nome fantasia ou CNPJ
+    <input name="q" value="{{ f.q }}" placeholder="ex.: chicotes, refrigeração, 12.345.678" autofocus></label>
+  <label>Região
+    <select name="regiao"><option value="">Todas</option>
+      {% for sigla, (nome, _) in regioes.items() %}<option value="{{ sigla }}" {{ "selected" if f.regiao == sigla }}>{{ nome }}</option>{% endfor %}
+    </select></label>
+  <label>UF
+    <select name="uf"><option value="">Todas</option>
+      {% for uf in ufs %}<option {{ "selected" if f.uf == uf }}>{{ uf }}</option>{% endfor %}
+    </select></label>
+  <label>Município
+    <input name="municipio" value="{{ f.municipio }}" list="lista-municipios" placeholder="{{ 'escolha a UF para sugestões' if not f.uf else '' }}">
+    <datalist id="lista-municipios">{% for m in municipios %}<option value="{{ m }}">{% endfor %}</datalist></label>
+  <label class="largo">Segmento
+    <select name="segmento"><option value="">Todos</option>
+      {% for s in segmentos %}<option value="{{ s.id }}" {{ "selected" if f.segmento == s.id }}>{{ s.nome }}</option>{% endfor %}
+    </select></label>
+  <label>CNAE <input name="cnae" value="{{ f.cnae }}" placeholder="ex.: 2945-0/00"></label>
+  <label>Segmento/CNAE como
+    <select name="cnae_tipo">
+      <option value="qualquer">Principal ou secundário</option>
+      <option value="principal" {{ "selected" if f.cnae_tipo == "principal" }}>Somente principal</option>
+    </select></label>
+  <fieldset class="largo"><legend>Porte</legend>
+    {% for cod, nome in portes.items() if cod != "00" %}
+    <label class="opcao"><input type="checkbox" name="porte" value="{{ cod }}" {{ "checked" if cod in f.porte }}> {{ nome }}</label>
+    {% endfor %}</fieldset>
+  <fieldset class="largo"><legend>Mostrar só</legend>
+    <label class="opcao"><input type="checkbox" name="com_email" value="1" {{ "checked" if f.com_email }}> com e-mail</label>
+    <label class="opcao"><input type="checkbox" name="com_telefone" value="1" {{ "checked" if f.com_telefone }}> com telefone</label>
+    <label class="opcao"><input type="checkbox" name="so_matriz" value="1" {{ "checked" if f.so_matriz }}> matrizes</label>
+    <label class="opcao"><input type="checkbox" name="com_site" value="1" {{ "checked" if f.com_site }}> com site</label>
+    <label class="opcao"><input type="checkbox" name="incluir_referencia" value="1" {{ "checked" if f.incluir_referencia }}> incluir empresas já atendidas/cotadas</label>
+    <label class="opcao"><input type="checkbox" name="incluir_nao_contatar" value="1" {{ "checked" if f.incluir_nao_contatar }}> incluir "não contatar"</label>
+  </fieldset>
+  <label>Contato da área
+    <select name="area_contato"><option value="">Qualquer</option>
+      {% for a in areas %}<option {{ "selected" if f.area_contato == a }}>{{ a }}</option>{% endfor %}</select></label>
+  <label>IE/ICMS
+    <select name="ie_status"><option value="">Qualquer</option>
+      {% for k, v in ie_status.items() %}<option value="{{ k }}" {{ "selected" if f.ie_status == k }}>{{ v }}</option>{% endfor %}</select></label>
+  <label>Situação como lead
+    <select name="lead_status"><option value="">Todas (sem descartados)</option>
+      {% for k, v in lead_status.items() %}<option value="{{ k }}" {{ "selected" if f.lead_status == k }}>{{ v }}</option>{% endfor %}</select></label>
+  <label>Última atualização da base
+    <select name="novidade"><option value="">Todas</option>
+      <option value="nova" {{ "selected" if f.novidade == "nova" }}>Só empresas novas</option>
+      <option value="alterada" {{ "selected" if f.novidade == "alterada" }}>Só com dados alterados</option></select></label>
+  <label>Índice mínimo <input name="indice_minimo" type="number" min="0" max="100" step="5" value="{{ f.indice_minimo or '' }}" placeholder="0 a 100"></label>
+  <label class="largo">Linha de produto sugerida
+    <select name="linha_segmento"><option value="">Todas</option>
+      {% for s in segmentos if s.linha_produto %}<option value="{{ s.id }}" {{ "selected" if f.linha_segmento == s.id }}>{{ s.linha_produto[:70] }}</option>{% endfor %}
+    </select></label>
+  <label>Ordenar por
+    <select name="ordem">{% for k, (nome, _) in ordenacoes.items() %}<option value="{{ k }}" {{ "selected" if f.ordem == k }}>{{ nome }}</option>{% endfor %}</select></label>
+  <div class="acoes"><button type="submit" class="botao">Buscar</button> <a href="/busca" class="botao secundario">Limpar</a></div>
+</form>
+
+{% if resultado is none %}
+  <p class="vazio-texto">Escolha pelo menos um filtro para buscar. Dica: comece por um segmento e uma UF.</p>
+{% elif resultado.total == 0 %}
+  <section class="cartao vazio"><p>Nenhuma empresa encontrada com esses filtros.</p></section>
+{% else %}
+  <p class="contagem">{{ resultado.total | milhar }}{% if resultado.total_limitado %}+{% endif %} estabelecimento(s)
+    · página {{ resultado.pagina }} de {{ resultado.paginas | milhar }}
+    <span class="acoes-direita"><a class="botao secundario pequeno" href="/busca/exportar?{{ query_exportar }}&formato=xlsx">Exportar Excel</a>
+      <a class="botao secundario pequeno" href="/busca/exportar?{{ query_exportar }}&formato=csv">Exportar CSV</a></span></p>
+  <div class="rolagem">
+  <table class="tabela resultados">
+    <thead><tr><th class="num">Índice</th><th>Empresa</th><th>CNPJ</th><th>Local</th><th>Segmento e linha sugerida</th><th>CNAE principal</th><th>Porte</th><th>Contato</th></tr></thead>
+    <tbody>
+    {% for l in resultado.linhas %}
+      <tr>
+        <td class="num">{% if l.score is not none %}<span class="indice" title="{% for m in l.motivos_resumo %}{{ m.nome }}: +{{ m.pontos }}&#10;{% endfor %}">{{ l.score | round(0) | int }}</span>
+          <br><span class="suave motivos">{% for m in l.motivos_resumo[:2] %}{{ m.nome.split(" ")[0] | lower }}{% if not loop.last %}, {% endif %}{% endfor %}</span>{% else %}—{% endif %}</td>
+        <td><a href="/empresa/{{ l.cnpj }}"><strong>{{ l.razao_social }}</strong></a>
+          {% if l.nome_fantasia %}<br><span class="suave">{{ l.nome_fantasia }}</span>{% endif %}
+          {% if l.matriz_filial == "2" %}<span class="etiqueta">filial</span>{% endif %}
+          {% if l.referencia %}<span class="etiqueta andamento">já atendida/cotada</span>{% endif %}
+          {% if l.lead_etapa %}<span class="etiqueta ok">lead: {{ l.lead_etapa }}</span>
+          {% else %}<form method="post" action="/leads/salvar" class="inline"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+            <input type="hidden" name="cnpj" value="{{ l.cnpj }}"><input type="hidden" name="voltar" value="{{ url_atual }}">
+            <button class="botao secundario pequeno">Salvar lead</button></form>{% endif %}</td>
+        <td class="nowrap">{{ l.cnpj_formatado }}
+          <button type="button" class="botao secundario pequeno" data-copiar="{{ l.cnpj_formatado }}" aria-label="Copiar CNPJ">Copiar</button></td>
+        <td>{{ l.municipio_nome or "" }}/{{ l.uf }}</td>
+        <td>{% if l.segmentos %}{{ l.segmentos[0].nome }}{% if not l.segmentos[0].principal %} <span class="suave">(por CNAE secundário)</span>{% endif %}
+              {% if l.segmentos | length > 1 %}<br><span class="suave">+{{ l.segmentos | length - 1 }} outro(s)</span>{% endif %}
+            {% else %}Outros{% endif %}
+            {% if l.linha_produto %}<br><span class="linha-produto" title="{{ l.linha_produto }}">{{ l.linha_produto.split(" (")[0] }}</span>{% endif %}</td>
+        <td><span title="{{ l.cnae_descricao or '' }}">{{ formatar_cnae(l.cnae_principal) }}</span><br><span class="suave">{{ (l.cnae_descricao or "")[:45] }}</span></td>
+        <td>{{ portes.get(l.porte or "", "—") }}</td>
+        <td class="nowrap">{% if l.telefone1 %}☎ {% endif %}{% if l.email %}✉{% endif %}{% if not l.telefone1 and not l.email %}<span class="suave">não localizado</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <nav class="paginacao" aria-label="Páginas">
+    {% if resultado.pagina > 1 %}<a href="{{ link_pagina(1) }}">« primeira</a> <a href="{{ link_pagina(resultado.pagina - 1) }}">‹ anterior</a>{% endif %}
+    <span>página {{ resultado.pagina }} de {{ resultado.paginas | milhar }}</span>
+    {% if resultado.pagina < resultado.paginas %}<a href="{{ link_pagina(resultado.pagina + 1) }}">próxima ›</a>{% endif %}
+  </nav>
+  <p class="dica">O índice é uma <strong>estimativa interna</strong> de compatibilidade (0 a 100), não uma probabilidade de compra. Passe o mouse sobre o número para ver os motivos; os pesos ficam em Configurações.</p>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block titulo %}Configurações{% endblock %}
+{% block cabecalho %}{% if recalculando %}<meta http-equiv="refresh" content="10">{% endif %}{% endblock %}
+{% block conteudo %}
+<h1>Configurações</h1>
+<nav class="abas">
+  <a href="#indice">Índice de compatibilidade</a><a href="#perfil">Perfil das referências</a>
+  <a href="#segmentos">Segmentos e linhas de produto</a><a href="#filtro">Filtro da importação</a>
+  <a href="#ie-links">Links de IE/ICMS</a><a href="#lan">Rede local</a><a href="#backup">Backup</a>
+</nav>
+
+{% set mensagens = {
+  "indice_salvo": ("sucesso", "Pesos salvos. O índice está sendo recalculado em segundo plano (cerca de 2 minutos)."),
+  "recalculando": ("sucesso", "Recálculo iniciado em segundo plano."),
+  "ja_recalculando": ("erro", "Já existe um recálculo em andamento."),
+  "peso_invalido": ("erro", "Valor inválido: use números."),
+  "segmento_salvo": ("sucesso", "Segmento salvo. Recalcule o índice; CNAEs novos só trazem empresas novas após reimportar a base."),
+  "cnae_inexistente": ("erro", "Há CNAE que não existe na tabela oficial. Confira os códigos (formato 0000-0/00)."),
+  "nome_vazio": ("erro", "Informe o nome do segmento."),
+  "filtro_salvo": ("sucesso", "Filtro salvo. Ele vale na próxima importação da base (Status das fontes)."),
+  "filtro_vazio": ("erro", "Escolha pelo menos uma UF e uma situação cadastral."),
+  "links_salvos": ("sucesso", "Links de consulta de IE/ICMS salvos."),
+  "link_invalido": ("erro", "Todos os links devem começar com http:// ou https://."),
+  "backup_ok": ("sucesso", "Backup criado."), "restaurar_ocupado": ("erro", "Espere a importação ou o recálculo terminar antes de restaurar."),
+  "restaurar_erro": ("erro", "Não foi possível restaurar: " ~ request.query_params.get("detalhe", "")),
+  "lan_salvo": ("sucesso", "Preferência salva. Feche o sistema (Encerrar Sistema) e abra de novo para aplicar."),
+} %}
+{% if msg in mensagens %}<p class="aviso {{ mensagens[msg][0] }}" role="{{ 'alert' if mensagens[msg][0] == 'erro' else 'status' }}">{{ mensagens[msg][1] }}</p>{% endif %}
+
+<section class="cartao" id="indice">
+  <h2>Índice de compatibilidade</h2>
+  <p class="dica">O índice é a média ponderada dos sinais abaixo (cada um vale de 0 a 1), convertida para 0–100.
+    É uma <strong>estimativa interna</strong> para priorizar, não uma probabilidade de compra. Peso 0 desliga o sinal.</p>
+  {% set si = situacao_indice %}
+  <p>{% if recalculando %}<span class="etiqueta andamento">recalculando…</span> esta página se atualiza sozinha.
+     {% elif si.desatualizado %}<span class="etiqueta erro">desatualizado</span> a lista de referência, os pesos ou os segmentos mudaram.
+     {% elif si.ultima %}<span class="etiqueta ok">atualizado</span>{% endif %}
+     {% if si.ultima %}Último cálculo: {{ si.ultima.iniciada_em }} · {{ si.ultima.calculados | milhar }} estabelecimentos · {{ si.ultima.status }}{% endif %}</p>
+  <form method="post" action="/configuracoes/indice" class="formulario">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <table class="tabela"><thead><tr><th>Sinal</th><th>Peso</th><th>Padrão</th><th>Por que este peso</th></tr></thead><tbody>
+    {% for chave, nome in nomes_sinais.items() %}
+      <tr><td><strong>{{ nome }}</strong></td>
+        <td><input type="number" name="peso_{{ chave }}" min="0" max="100" step="1" value="{{ cfg_indice.pesos[chave] | int }}" class="numero"></td>
+        <td>{{ padrao.pesos[chave] }}</td><td class="suave">{{ padrao._justificativa[chave] }}</td></tr>
+    {% endfor %}</tbody></table>
+    <fieldset><legend>UFs prioritárias (o sinal "UF prioritária" só conta se houver alguma marcada)</legend>
+      <div class="grade-ufs">{% for uf in ufs %}<label class="opcao"><input type="checkbox" name="ufs_prioritarias" value="{{ uf }}" {{ "checked" if uf in cfg_indice.ufs_prioritarias }}> {{ uf }}</label>{% endfor %}</div>
+    </fieldset>
+    <label>Palavras técnicas procuradas no nome da empresa (separadas por vírgula)
+      <textarea name="palavras_chave" rows="3">{{ cfg_indice.palavras_chave | join(", ") }}</textarea></label>
+    <div class="acoes">
+      <button type="submit" name="acao" value="salvar" class="botao">Salvar e recalcular</button>
+      <button type="submit" name="acao" value="padrao" class="botao secundario">Restaurar padrão</button>
+    </div>
+  </form>
+  {% if not recalculando %}
+  <form method="post" action="/configuracoes/indice/recalcular" class="linha-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <button type="submit" class="botao secundario">Recalcular agora (sem mudar pesos)</button>
+  </form>{% endif %}
+</section>
+
+<section class="cartao" id="perfil">
+  <h2>Perfil das empresas de referência</h2>
+  {% if not perfil.empresas %}
+    <p class="vazio-texto">Nenhuma empresa da lista de referência conciliada com confiança ainda. Importe a lista em <a href="/importacao">Importação</a>.</p>
+  {% else %}
+  <p>Baseado em <strong>{{ perfil.empresas }}</strong> empresas da lista de referência confirmadas na base (uma por empresa, a matriz).</p>
+  <div class="colunas">
+    <div><h3>CNAEs principais mais frequentes</h3>
+      <table class="tabela compacta-larga"><tbody>{% for c, n in perfil.cnae_principal.items() %}{% if loop.index <= 10 %}
+        <tr><td class="nowrap">{{ formatar_cnae(c) }}</td><td>{{ descricoes.get(c, "")[:60] }}</td><td class="num">{{ n }}</td></tr>{% endif %}{% endfor %}</tbody></table></div>
+    <div><h3>Segmentos</h3>
+      <table class="tabela compacta-larga"><tbody>{% for s, n in perfil.segmentos.items() %}<tr><td>{{ nomes_segmentos.get(s, s) }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</tbody></table>
+      <h3>Porte</h3>
+      <table class="tabela compacta-larga"><tbody>{% for p, n in perfil.porte.items() %}<tr><td>{{ portes.get(p, p) }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</tbody></table>
+      <h3>Região</h3>
+      <table class="tabela compacta-larga"><tbody>{% for r, n in perfil.regiao.items() %}<tr><td>{{ regioes[r][0] if r in regioes else r }}</td><td class="num">{{ n }}</td></tr>{% endfor %}</tbody></table>
+    </div>
+  </div>
+  <p class="dica">Uma empresa pode estar em vários segmentos. Empresas da lista fora dos CNAEs do filtro não entram no perfil.</p>
+  {% endif %}
+</section>
+
+<section class="cartao" id="segmentos">
+  <h2>Segmentos e linhas de produto</h2>
+  <p class="dica"><strong>Aderência</strong> (0 a 1): quanto o segmento depende dos produtos Condvolt. CNAEs no formato 0000-0/00, separados por vírgula.
+    Uma empresa pode estar em vários segmentos (o mesmo CNAE pode estar em mais de um).</p>
+  {% for s in segmentos %}
+  <form method="post" action="/configuracoes/segmento" class="segmento-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="segmento_id" value="{{ s.id }}">
+    <label>Nome <input name="nome" value="{{ s.nome }}" required></label>
+    <label>Aderência <input name="peso" type="number" min="0" max="1" step="0.1" value="{{ s.peso }}" class="numero"></label>
+    <label class="largo">Linha de produto sugerida <input name="linha_produto" value="{{ s.linha_produto }}"></label>
+    <label class="largo">CNAEs <input name="cnaes" value="{{ s.cnaes }}" {{ "disabled" if s.id == 14 }}></label>
+    <div class="acoes"><button type="submit" name="acao" value="salvar" class="botao pequeno">Salvar</button>
+      {% if s.id != 14 %}<button type="submit" name="acao" value="excluir" class="botao secundario pequeno">Excluir</button>{% endif %}</div>
+  </form>
+  {% endfor %}
+  <h3>Novo segmento</h3>
+  <form method="post" action="/configuracoes/segmento" class="segmento-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <label>Nome <input name="nome" required></label>
+    <label>Aderência <input name="peso" type="number" min="0" max="1" step="0.1" value="0.5" class="numero"></label>
+    <label class="largo">Linha de produto sugerida <input name="linha_produto"></label>
+    <label class="largo">CNAEs <input name="cnaes" placeholder="ex.: 2945-0/00, 2733-3/00"></label>
+    <div class="acoes"><button type="submit" class="botao pequeno">Adicionar</button></div>
+  </form>
+</section>
+
+<section class="cartao" id="filtro">
+  <h2>Filtro da importação da base</h2>
+  <p class="dica">Define quais estabelecimentos são trazidos da Receita. Mudanças valem na próxima importação
+    (<a href="/fontes">Status das fontes</a>). Os CNAEs do filtro são os dos segmentos acima.</p>
+  <form method="post" action="/configuracoes/filtro" class="formulario">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <fieldset><legend>UFs</legend>
+      <div class="grade-ufs">{% for uf in ufs %}<label class="opcao"><input type="checkbox" name="ufs" value="{{ uf }}" {{ "checked" if uf in ufs_filtro }}> {{ uf }}</label>{% endfor %}</div></fieldset>
+    <fieldset><legend>Situação cadastral</legend>
+      {% for cod, nome in situacoes.items() %}<label class="opcao"><input type="checkbox" name="situacoes" value="{{ cod }}" {{ "checked" if cod in situacoes_filtro }}> {{ nome }}</label>{% endfor %}</fieldset>
+    <fieldset><legend>Excluir MEI quando a empresa só entra por estes CNAEs (volume muito alto)</legend>
+      <div class="grade-cnaes">{% for f in filtro %}<label class="opcao"><input type="checkbox" name="excluir_mei" value="{{ f.cnae }}" {{ "checked" if f.excluir_mei }}> {{ f.formatado }} <span class="suave">{{ f.descricao[:50] }}</span></label>{% endfor %}</div></fieldset>
+    <div class="acoes"><button type="submit" class="botao">Salvar filtro</button></div>
+  </form>
+</section>
+<section class="cartao" id="ie-links">
+  <h2>Links de consulta de IE/ICMS por UF</h2>
+  <p class="dica">Usados pelo botão "Consultar IE/ICMS" da ficha. O padrão é o portal nacional do SINTEGRA (escolher a UF)
+    e o CCC nacional, que pede login gov.br. Quando validar o link direto da SEFAZ de um estado, cole aqui e anote o resultado.</p>
+  <form method="post" action="/configuracoes/ie-links" class="formulario">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <div class="rolagem"><table class="tabela">
+      <thead><tr><th>UF</th><th>Página estadual (SINTEGRA/SEFAZ)</th><th>CCC</th><th>Observação</th></tr></thead>
+      <tbody>{% for l in ie_links %}<tr><td>{{ l.uf }}</td>
+        <td><input name="estadual_{{ l.uf }}" value="{{ l.url_estadual }}" class="url"></td>
+        <td><input name="ccc_{{ l.uf }}" value="{{ l.url_ccc }}" class="url"></td>
+        <td><input name="obs_{{ l.uf }}" value="{{ l.observacao or '' }}" class="url"></td></tr>{% endfor %}</tbody>
+    </table></div>
+    <div class="acoes"><button type="submit" class="botao">Salvar links</button></div>
+  </form>
+  <p class="dica">Integração automática com certificado digital A1: desativada (opcional). Ver docs/08-contatos-ie-lgpd.md.</p>
+</section>
+<section class="cartao" id="lan">
+  <h2>Acesso pela rede local</h2>
+  <p>{% if lan_ativo %}<span class="etiqueta ok">ativado</span>{% else %}<span class="etiqueta">desativado</span>{% endif %}
+    {% if lan_ativo != lan_em_uso %}<span class="etiqueta andamento">reinicie o sistema para aplicar</span>{% endif %}</p>
+  {% if lan_ativo %}
+  <p>Em outro computador ou celular <strong>da mesma rede</strong>, abra:</p>
+  <ul>{% for ip in enderecos_lan %}<li><code>http://{{ ip }}:{{ porta }}/</code> <button type="button" class="botao secundario pequeno" data-copiar="http://{{ ip }}:{{ porta }}/">Copiar</button></li>
+      {% else %}<li class="vazio-texto">Nenhum endereço de rede local encontrado (o computador está conectado?).</li>{% endfor %}</ul>
+  <p class="dica">Libere a porta no Firewall do Windows (só rede Privada) com <code>scripts\liberar-firewall.ps1</code> como administrador.
+    O endereço muda se o roteador der outro IP ao computador: peça uma reserva de DHCP no roteador. Nunca exponha à internet.</p>
+  {% endif %}
+  {% if local %}
+  <form method="post" action="/configuracoes/lan"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <input type="hidden" name="ativo" value="{{ '0' if lan_ativo else '1' }}">
+    <button class="botao secundario">{{ "Desativar acesso pela rede" if lan_ativo else "Ativar acesso pela rede" }}</button></form>
+  {% else %}<p class="dica">Só pode ser alterado no próprio computador onde o sistema está instalado.</p>{% endif %}
+  <p class="dica">Pela rede o acesso é HTTP (sem cadeado): login continua obrigatório e o botão copiar usa o modo alternativo.</p>
+</section>
+
+<section class="cartao" id="backup">
+  <h2>Backup e restauração</h2>
+  <form method="post" action="/configuracoes/backup" class="linha-form"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <button class="botao">Criar backup agora</button></form>
+  <p class="dica">Os backups ficam na pasta de dados (backups). São mantidos os 10 mais recentes. Copie-os para um pendrive ou HD externo de vez em quando.</p>
+  {% if backups %}<div class="rolagem"><table class="tabela"><thead><tr><th>Arquivo</th><th>Criado em</th><th class="num">Tamanho</th><th></th></tr></thead><tbody>
+  {% for b in backups %}<tr><td>{{ b.nome }}</td><td>{{ (b.manifesto.criado_em or "")[:16] | replace("T", " ") }}</td><td class="num">{{ (b.tamanho / 1024 / 1024) | round(1) }} MB</td>
+    <td class="nowrap"><a class="botao secundario pequeno" href="/configuracoes/backup/{{ b.nome }}">Baixar</a>
+      {% if local %}<form method="post" action="/configuracoes/backup/restaurar" class="inline" data-confirmar="Restaurar este backup? O estado atual será guardado antes num backup de segurança, e você precisará entrar de novo.">
+        <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="nome" value="{{ b.nome }}"><button class="botao secundario pequeno">Restaurar</button></form>{% endif %}</td></tr>
+  {% endfor %}</tbody></table></div>{% else %}<p class="vazio-texto">Nenhum backup ainda.</p>{% endif %}
+</section>
+{% endblock %}

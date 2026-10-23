@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block titulo %}Status das fontes{% endblock %}
+{% block cabecalho %}{% if rodando %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
+{% macro numero(n) %}{{ "{:,}".format(n or 0).replace(",", ".") }}{% endmacro %}
+{% block conteudo %}
+<h1>Status das fontes</h1>
+
+{% if msg == "iniciada" %}<p class="aviso sucesso" role="status">Importação iniciada em segundo plano. Esta página se atualiza sozinha.</p>
+{% elif msg == "ja_rodando" %}<p class="aviso erro" role="alert">Já existe uma importação em andamento.</p>
+{% elif msg == "espelho_invalido" %}<p class="aviso erro" role="alert">Informe a URL do espelho começando com https://</p>
+{% elif msg == "agenda_salva" %}<p class="aviso sucesso" role="status">Preferência de atualização automática salva.</p>
+{% elif msg == "tarefa_executada" %}<p class="aviso sucesso" role="status">Tarefa executada. Veja o resultado na agenda abaixo.</p>{% endif %}
+
+<section class="cartao" id="agenda">
+  <h2>Atualização automática</h2>
+  <form method="post" action="/fontes/agenda" class="linha-form"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <input type="hidden" name="automatica" value="{{ '0' if automatica else '1' }}">
+    <p>{% if automatica %}<span class="etiqueta ok">ativada</span> O sistema confere a agenda a cada 10 minutos enquanto estiver aberto.
+       {% else %}<span class="etiqueta erro">desativada</span>{% endif %}
+      <button class="botao secundario pequeno">{{ "Desativar" if automatica else "Ativar" }}</button></p></form>
+  <div class="rolagem"><table class="tabela">
+    <thead><tr><th>Tarefa</th><th>Última execução</th><th>Resultado</th><th>Próxima</th><th></th></tr></thead>
+    <tbody>{% for t in agenda %}<tr><td><strong>{{ t.descricao }}</strong><br><span class="suave">a cada {{ t.intervalo_horas // 24 }} dia(s)</span></td>
+      <td>{{ (t.ultima_execucao or "nunca")[:16] | replace("T", " ") }}</td>
+      <td>{% if t.ultimo_status %}<span class="etiqueta {{ 'ok' if t.ultimo_status in ('ok', 'nada_a_fazer', 'iniciada') else 'erro' }}">{{ t.ultimo_status | replace("_", " ") }}</span><br>{% endif %}<span class="suave">{{ t.ultimo_resultado or "" }}</span></td>
+      <td>{{ (t.proxima_execucao or "ao iniciar o sistema")[:16] | replace("T", " ") }}</td>
+      <td><form method="post" action="/fontes/agenda/{{ t.tarefa }}/executar"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><button class="botao secundario pequeno">Executar agora</button></form></td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="dica">Horários em UTC. Se o computador estiver desligado no horário previsto, a tarefa roda cerca de 2 minutos depois que o sistema for aberto.
+    A primeira importação da base é sempre manual.</p>
+  {% if novidades %}
+  <h3>Novidades da última atualização</h3>
+  <p><a href="/busca?novidade=nova">{{ novidades.get("nova", 0) | milhar }} empresas novas</a> ·
+     <a href="/busca?novidade=alterada">{{ novidades.get("alterada", 0) | milhar }} com dados alterados</a> ·
+     {{ novidades.get("removida", 0) | milhar }} saíram da base (baixadas ou fora do filtro)
+     {% if leads_alterados %}· <a href="/leads"><strong>{{ leads_alterados }} lead(s) afetado(s)</strong></a>{% endif %}</p>
+  {% endif %}
+</section>
+
+<section class="cartao">
+  <h2>Base da Receita Federal — Dados Abertos do CNPJ</h2>
+  {% if not status %}
+    <p class="aviso info">Nenhuma importação feita ainda. A primeira importação baixa cerca de 8,6 GB e leva de 20 minutos a algumas horas, conforme a internet e o computador. Precisa de pelo menos 15 GB livres.</p>
+  {% else %}
+    {% set imp = status.importacao %}
+    {% if status.ultima_concluida %}
+      {% set u = status.ultima_concluida %}
+      <p class="aviso sucesso">Base disponível: competência <strong>{{ u.competencia }}</strong>
+        (referência da Receita {{ u.data_referencia or "não informada" }}), importada em {{ u.concluida_em }}.
+        {% if u.origem == "espelho" %}<br><strong>Atenção:</strong> obtida de um espelho não oficial.{% endif %}</p>
+    {% endif %}
+    <dl class="dados">
+      <dt>Última execução</dt><dd>#{{ imp.id }} · competência {{ imp.competencia }} · origem <strong>{{ imp.origem }}</strong></dd>
+      <dt>Situação</dt>
+      <dd>{% if rodando %}<span class="etiqueta andamento">em andamento</span> {{ status.etapa }}
+            {% if status.arquivo_atual %}· {{ status.arquivo_atual.arquivo }}, {{ numero(status.arquivo_atual.linhas_lidas) }} linhas lidas{% endif %}
+          {% elif imp.status == "concluida" %}<span class="etiqueta ok">concluída</span>
+          {% elif imp.status == "falhou" or imp.status == "em_andamento" %}<span class="etiqueta erro">interrompida</span>
+            — clique em "Importar / atualizar agora" para retomar de onde parou.
+          {% else %}{{ imp.status }}{% endif %}</dd>
+      {% if imp.erro %}<dt>Erro</dt><dd class="texto-erro">{{ imp.erro }}</dd>{% endif %}
+      <dt>Início</dt><dd>{{ imp.iniciada_em }}</dd>
+      {% if imp.concluida_em %}<dt>Fim</dt><dd>{{ imp.concluida_em }}</dd>{% endif %}
+    </dl>
+    {% if imp.status != "concluida" %}
+      <p class="progresso-linha"><progress max="100" value="{{ status.percentual }}">{{ status.percentual }}%</progress>
+        <strong>{{ status.percentual }}%</strong></p>
+    {% endif %}
+    {% set r = status.resumo %}
+    {% if r.estabelecimentos is defined %}
+      <h3>Resultado</h3>
+      <dl class="dados">
+        <dt>Estabelecimentos gravados</dt><dd>{{ numero(r.estabelecimentos) }} ({{ numero(r.matrizes) }} matrizes)</dd>
+        <dt>Empresas</dt><dd>{{ numero(r.empresas) }}</dd>
+        <dt>Sócios e administradores</dt><dd>{{ numero(r.socios) }}</dd>
+        <dt>Registros do Simples/MEI</dt><dd>{{ numero(r.simples) }}</dd>
+        <dt>MEIs descartados (CNAE de volume alto)</dt><dd>{{ numero(r.mei_removidos) }}</dd>
+        <dt>Removidos (saíram do filtro ou baixados)</dt><dd>{{ numero(r.obsoletos_removidos) }}</dd>
+        <dt>Linhas lidas da Receita</dt><dd>{{ numero(r.linhas_lidas) }}</dd>
+        <dt>Linhas com estrutura inválida</dt><dd>{{ numero(r.linhas_invalidas) }}</dd>
+        <dt>Caracteres ilegíveis substituídos</dt><dd>{{ numero(r.caracteres_trocados) }}</dd>
+        {% if r.cnaes_do_filtro_inexistentes %}<dt>CNAEs do filtro inexistentes</dt><dd class="texto-erro">{{ r.cnaes_do_filtro_inexistentes | join(", ") }}</dd>{% endif %}
+        {% if r.tempos_s %}<dt>Tempo por etapa</dt><dd>{% for k, v in r.tempos_s.items() %}{{ nomes_etapas.get(k, k) }}: {{ (v / 60) | round(1) }} min{% if not loop.last %} · {% endif %}{% endfor %}</dd>{% endif %}
+      </dl>
+    {% endif %}
+    <details>
+      <summary>Arquivos ({{ status.arquivos | selectattr("status", "equalto", "concluido") | list | length }} de {{ status.arquivos | length }} concluídos)</summary>
+      <table class="tabela">
+        <thead><tr><th>Arquivo</th><th>Situação</th><th class="num">Linhas lidas</th><th class="num">Gravadas</th><th class="num">Inválidas</th></tr></thead>
+        <tbody>
+        {% for a in status.arquivos %}
+          <tr><td>{{ a.arquivo }}</td><td>{{ a.status }}</td><td class="num">{{ numero(a.linhas_lidas) }}</td>
+              <td class="num">{{ numero(a.linhas_gravadas) }}</td><td class="num">{{ numero(a.linhas_invalidas) }}</td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endif %}
+
+  {% if not rodando %}
+  <form method="post" action="/fontes/receita/importar" class="formulario linha-form">
+    <input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <fieldset>
+      <legend>Fonte</legend>
+      <label class="opcao"><input type="radio" name="fonte" value="oficial" {{ "checked" if config.get("receita_fonte", "oficial") != "espelho" else "" }}>
+        Oficial — {{ config.receita_url_oficial }}</label>
+      <label class="opcao"><input type="radio" name="fonte" value="espelho" {{ "checked" if config.get("receita_fonte") == "espelho" else "" }}>
+        Espelho não oficial (use só se o site oficial estiver fora do ar)</label>
+      <label>URL do espelho <input name="url_espelho" value="{{ config.receita_url_espelho }}" placeholder="https://..."></label>
+    </fieldset>
+    <button type="submit" class="botao">Importar / atualizar agora</button>
+  </form>
+  {% endif %}
+  <p class="dica">Log detalhado: <code>{{ caminho_log }}</code></p>
+</section>
+
+<section class="cartao">
+  <h2>Todas as fontes</h2>
+  <table class="tabela"><thead><tr><th>Fonte</th><th>Última atualização</th><th>Situação</th></tr></thead><tbody>
+  {% for f in fontes_status %}<tr><td>{{ f.fonte }}</td><td>{{ (f.ultima or "")[:16] | replace("T", " ") or "—" }}</td><td>{{ f.resultado }}</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="dica">Consultas e atualizações dependem de internet; a consulta e a organização dos dados já importados funcionam sem internet.</p>
+</section>
+{% endblock %}
