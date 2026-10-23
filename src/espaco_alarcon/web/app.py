@@ -20,7 +20,8 @@ from espaco_alarcon import __version__, auth
 from espaco_alarcon.audit import configurar_log, log, registrar
 from espaco_alarcon.config import Config
 from espaco_alarcon.db import conectar, migrar, transacao
-from espaco_alarcon.jobs import importar_receita
+from espaco_alarcon.domain import painel
+from espaco_alarcon.jobs import agenda, importar_receita
 from espaco_alarcon.web import rotas_busca, rotas_config, rotas_ficha, rotas_importacao, rotas_leads
 from espaco_alarcon.connectors import brasilapi, site as conector_site
 from espaco_alarcon.jobs import processos
@@ -55,7 +56,7 @@ def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
               token_encerrar: str | None = None, ao_encerrar=None,
               iniciar_importacao=importar_receita.iniciar_em_segundo_plano,
               iniciar_processo=processos.iniciar, coletor_site=conector_site.coletar,
-              consultar_api=brasilapi.consultar) -> FastAPI:
+              consultar_api=brasilapi.consultar, acoes_agenda: dict | None = None) -> FastAPI:
     caminho_log = configurar_log(cfg.log_dir)
     with _conexao(cfg) as conn:
         aplicadas = migrar(conn)
@@ -228,7 +229,33 @@ def criar_app(cfg: Config, *, hosts_locais: frozenset[str] = HOSTS_LOCAIS,
             "rodando": rodando, "config": config, "msg": msg,
             "caminho_log": str(cfg.log_dir / "importacao-receita.log"),
             "nomes_etapas": importar_receita.NOMES_ETAPAS,
+            "agenda": conn.execute("SELECT * FROM agenda ORDER BY tarefa DESC").fetchall(),
+            "automatica": agenda.automatica_ativa(conn), "fontes_status": painel.status_fontes(conn),
+            "novidades": dict(conn.execute(
+                "SELECT tipo, COUNT(*) FROM mudanca WHERE importacao_id = (SELECT MAX(id) FROM receita_importacao "
+                "WHERE status = 'concluida') GROUP BY tipo").fetchall()),
+            "leads_alterados": conn.execute(
+                "SELECT COUNT(DISTINCT l.id) FROM lead l JOIN mudanca m ON m.cnpj = l.cnpj WHERE l.descartado = 0 AND "
+                "m.importacao_id = (SELECT MAX(id) FROM receita_importacao WHERE status = 'concluida')").fetchone()[0],
         })
+
+    @app.post("/fontes/agenda")
+    def fontes_agenda(automatica: str = Form("0"), csrf_token: str = Form(""),
+                      sessao: auth.Sessao = Depends(sessao_atual), conn: sqlite3.Connection = Depends(db)):
+        exigir_csrf(sessao, csrf_token)
+        agenda.definir_automatica(conn, automatica == "1")
+        registrar(conn, "atualizacao_automatica_" + ("ativada" if automatica == "1" else "desativada"),
+                  usuario_id=sessao.usuario.id)
+        return RedirectResponse("/fontes?msg=agenda_salva#agenda", status_code=303)
+
+    @app.post("/fontes/agenda/{tarefa}/executar")
+    def fontes_agenda_executar(tarefa: str, csrf_token: str = Form(""), sessao: auth.Sessao = Depends(sessao_atual),
+                               conn: sqlite3.Connection = Depends(db)):
+        exigir_csrf(sessao, csrf_token)
+        if tarefa not in agenda.ACOES:
+            raise HTTPException(404, "Tarefa desconhecida.")
+        agenda.executar_pendentes(cfg, conn, forcar=tarefa, acoes=acoes_agenda)
+        return RedirectResponse("/fontes?msg=tarefa_executada#agenda", status_code=303)
 
     @app.post("/fontes/receita/importar")
     def fontes_importar(request: Request, csrf_token: str = Form(""), fonte: str = Form("oficial"),

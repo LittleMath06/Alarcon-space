@@ -51,6 +51,7 @@ class Filtros:
     com_site: bool = False
     ie_status: str = ""                # habilitado | nao_habilitado | nao_localizado | nao_consultado
     lead_status: str = ""              # "" (todos menos descartados) | nao_salvo | salvo | descartado | cliente
+    novidade: str = ""                 # nova | alterada (na última importação concluída)
     incluir_nao_contatar: bool = False
     indice_minimo: int | None = None
     linha_segmento: int | None = None  # segmento que define a linha de produto sugerida
@@ -60,7 +61,7 @@ class Filtros:
     def ativo(self) -> bool:
         return any([self.q, self.regiao, self.uf, self.municipio, self.segmento, self.cnae, self.porte,
                     self.com_email, self.com_telefone, self.so_matriz, self.indice_minimo, self.linha_segmento,
-                    self.area_contato, self.com_site, self.ie_status, self.lead_status])
+                    self.area_contato, self.com_site, self.ie_status, self.lead_status, self.novidade])
 
 
 @dataclass
@@ -160,6 +161,12 @@ def _where(conn: sqlite3.Connection, f: Filtros, tem_indice: bool) -> tuple[list
         cond.append("e.cnpj IN (SELECT l.cnpj FROM lead l JOIN etapa t ON t.id = l.etapa_id WHERE t.cliente = 1)")
     else:
         cond.append("e.cnpj NOT IN (SELECT cnpj FROM lead WHERE descartado = 1)")
+    if f.novidade in ("nova", "alterada"):
+        cond.append("e.cnpj IN (SELECT cnpj FROM mudanca WHERE tipo = ? AND importacao_id = "
+                    "(SELECT MAX(id) FROM receita_importacao WHERE status = 'concluida'))")
+        params.append(f.novidade)
+    if f.lead_status not in ("salvo", "cliente", "descartado"):
+        cond.append("e.fora_da_base = 0")   # baixadas/fora do filtro só aparecem como leads já salvos
     if not f.incluir_nao_contatar:
         cond.append("e.cnpj_basico NOT IN (SELECT cnpj_basico FROM nao_contatar)")
     if f.indice_minimo:

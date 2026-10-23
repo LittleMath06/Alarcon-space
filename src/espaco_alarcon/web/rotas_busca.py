@@ -45,6 +45,7 @@ def filtros_da_requisicao(request: Request) -> busca.Filtros:
         ie_status=q.get("ie_status", "") if q.get("ie_status", "") in IE_STATUS else "",
         incluir_nao_contatar=q.get("incluir_nao_contatar") == "1",
         lead_status=q.get("lead_status", "") if q.get("lead_status", "") in LEAD_STATUS else "",
+        novidade=q.get("novidade", "") if q.get("novidade", "") in ("nova", "alterada") else "",
         indice_minimo=max(0, min(100, _int(q.get("indice_minimo")) or 0)) or None,
         linha_segmento=_int(q.get("linha_segmento")),
         ordem=q.get("ordem", "indice") if q.get("ordem", "indice") in busca.ORDENACOES else "indice",

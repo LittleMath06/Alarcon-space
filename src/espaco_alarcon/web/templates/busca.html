@@ -50,6 +50,10 @@
   <label>Situação como lead
     <select name="lead_status"><option value="">Todas (sem descartados)</option>
       {% for k, v in lead_status.items() %}<option value="{{ k }}" {{ "selected" if f.lead_status == k }}>{{ v }}</option>{% endfor %}</select></label>
+  <label>Última atualização da base
+    <select name="novidade"><option value="">Todas</option>
+      <option value="nova" {{ "selected" if f.novidade == "nova" }}>Só empresas novas</option>
+      <option value="alterada" {{ "selected" if f.novidade == "alterada" }}>Só com dados alterados</option></select></label>
   <label>Índice mínimo <input name="indice_minimo" type="number" min="0" max="100" step="5" value="{{ f.indice_minimo or '' }}" placeholder="0 a 100"></label>
   <label class="largo">Linha de produto sugerida
     <select name="linha_segmento"><option value="">Todas</option>

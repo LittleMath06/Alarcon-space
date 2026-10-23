@@ -47,6 +47,18 @@ AUXILIARES = {
 }
 
 
+# Campos do estabelecimento acompanhados na detecção de mudanças (índice na tupla gravada).
+CAMPOS_ACOMPANHADOS = {
+    "nome_fantasia": 3, "situacao": 4, "cnae_principal": 10, "cnaes_secundarios": 11, "logradouro": 13,
+    "numero": 14, "bairro": 16, "cep": 17, "uf": 18, "municipio": 19, "telefone1": 21, "telefone2": 23, "email": 26,
+}
+
+
+def _assinatura(valores: dict) -> str:
+    import hashlib
+    return hashlib.sha1(json.dumps(valores, sort_keys=True).encode()).hexdigest()[:20]
+
+
 class ImportacaoInterrompida(RuntimeError):
     """Usada nos testes para simular queda de energia entre dois lotes."""
 
@@ -273,6 +285,10 @@ class Importador:
                 "INSERT INTO receita_arquivo (importacao_id, arquivo, tamanho, status) VALUES (?, ?, ?, ?)",
                 [(imp_id, nome, tam, "baixado" if self.fonte.local else "pendente") for nome, tam in arquivos])
             self.conn.execute("DELETE FROM receita_basico_aprovado")
+            self.conn.execute("DELETE FROM estab_anterior")
+            colunas = ", ".join(f"'{k}', {k}" for k in CAMPOS_ACOMPANHADOS)
+            self.conn.execute(f"INSERT INTO estab_anterior (cnpj, assinatura, valores) "
+                              f"SELECT cnpj, assinatura, json_object({colunas}) FROM estabelecimento")
         self._avisar(f"nova importação {imp_id}: competência {competencia}, origem {self.fonte.origem}")
         return imp_id
 
@@ -296,10 +312,11 @@ class Importador:
                 f"necessários {(falta + MARGEM_DISCO) / 1024**3:.1f} GB (arquivos + 5 GB para o banco).")
         self.conn.execute("UPDATE receita_importacao SET etapa = 'download' WHERE id = ?", (imp_id,))
         inicio = time.monotonic()
-        url_pasta = self.fonte.url_base.rstrip("/") + "/" + imp["competencia"] + "/"
+        url_pasta = receita.url_pasta(self.fonte.url_base, imp["competencia"])
+        auth = receita.cabecalhos(self.fonte.url_base)
         for r in pendentes:
             self._avisar(f"baixando {r['arquivo']}")
-            receita.baixar(receita.ArquivoRemoto(r["arquivo"], url_pasta + r["arquivo"], r["tamanho"]),
+            receita.baixar(receita.ArquivoRemoto(r["arquivo"], url_pasta + r["arquivo"], r["tamanho"], auth),
                            pasta / r["arquivo"])
             self.conn.execute("UPDATE receita_arquivo SET status = 'baixado', atualizado_em = ? "
                               "WHERE importacao_id = ? AND arquivo = ?", (_agora(), imp_id, r["arquivo"]))
@@ -430,13 +447,14 @@ class Importador:
             cnaes.extend((cnpj, cnae, 1 if cnae == principal else 0) for cnae in todos if cnae)
             basicos.add(l[0].strip())
         if estabs:
+            self._registrar_mudancas(imp_id, estabs)
             self.conn.executemany("DELETE FROM estabelecimento_cnae WHERE cnpj = ?", [(e[0],) for e in estabs])
             self.conn.executemany(
                 "INSERT INTO estabelecimento (cnpj, cnpj_basico, matriz_filial, nome_fantasia, situacao, "
                 "data_situacao, motivo_situacao, cidade_exterior, pais, data_inicio, cnae_principal, "
                 "cnaes_secundarios, tipo_logradouro, logradouro, numero, complemento, bairro, cep, uf, municipio, "
                 "ddd1, telefone1, ddd2, telefone2, ddd_fax, fax, email, situacao_especial, data_situacao_especial, "
-                "importacao_id, atualizado_em) VALUES (" + ",".join("?" * 31) + ") "
+                "importacao_id, atualizado_em, assinatura) VALUES (" + ",".join("?" * 32) + ") "
                 "ON CONFLICT(cnpj) DO UPDATE SET cnpj_basico=excluded.cnpj_basico, "
                 "matriz_filial=excluded.matriz_filial, nome_fantasia=excluded.nome_fantasia, "
                 "situacao=excluded.situacao, data_situacao=excluded.data_situacao, "
@@ -448,12 +466,55 @@ class Importador:
                 "ddd1=excluded.ddd1, telefone1=excluded.telefone1, ddd2=excluded.ddd2, telefone2=excluded.telefone2, "
                 "ddd_fax=excluded.ddd_fax, fax=excluded.fax, email=excluded.email, "
                 "situacao_especial=excluded.situacao_especial, data_situacao_especial=excluded.data_situacao_especial, "
-                "importacao_id=excluded.importacao_id, atualizado_em=excluded.atualizado_em", estabs)
+                "importacao_id=excluded.importacao_id, atualizado_em=excluded.atualizado_em, "
+                "assinatura=excluded.assinatura, fora_da_base=0", [e + (self._sig(e),) for e in estabs])
             self.conn.executemany("INSERT INTO estabelecimento_cnae (cnpj, cnae, principal) VALUES (?, ?, ?)", cnaes)
             self.conn.executemany("INSERT OR IGNORE INTO receita_basico_aprovado (cnpj_basico) VALUES (?)",
                                   [(b,) for b in basicos])
         c.gravadas = len(estabs)
         return c
+
+    @staticmethod
+    def _valores(e: tuple) -> dict:
+        return {k: e[i] for k, i in CAMPOS_ACOMPANHADOS.items()}
+
+    def _sig(self, e: tuple) -> str:
+        return _assinatura(self._valores(e))
+
+    def _registrar_mudancas(self, imp_id: int, estabs: list[tuple]) -> None:
+        """Compara com a assinatura anterior. Só registra se já houve uma importação concluída antes."""
+        if not self._tem_base_anterior:
+            return
+        cnpjs = [e[0] for e in estabs]
+        anteriores: dict[str, tuple] = {}
+        for i in range(0, len(cnpjs), 900):
+            parte = cnpjs[i:i + 900]
+            for r in self.conn.execute(
+                    f"SELECT cnpj, assinatura, importacao_id FROM estabelecimento WHERE cnpj IN ({','.join('?' * len(parte))})",
+                    parte):
+                anteriores[r[0]] = (r[1], r[2])
+        agora = _agora()
+        registros = []
+        for e in estabs:
+            antes = anteriores.get(e[0])
+            if antes is None:
+                registros.append((imp_id, e[0], "nova", None, agora))
+            elif antes[1] != imp_id and antes[0] is not None and antes[0] != self._sig(e):
+                # assinatura nula = importado antes desta função existir: não dá para comparar
+                velho = self.conn.execute("SELECT valores FROM estab_anterior WHERE cnpj = ?", (e[0],)).fetchone()
+                novos = self._valores(e)
+                campos = sorted(k for k, v in novos.items() if velho and json.loads(velho[0]).get(k) != v) if velho else []
+                registros.append((imp_id, e[0], "alterada", json.dumps(campos), agora))
+        if registros:
+            self.conn.executemany("INSERT INTO mudanca (importacao_id, cnpj, tipo, campos, em) VALUES (?, ?, ?, ?, ?)",
+                                  registros)
+
+    @property
+    def _tem_base_anterior(self) -> bool:
+        if not hasattr(self, "_base_anterior_cache"):
+            self._base_anterior_cache = self.conn.execute(
+                "SELECT 1 FROM estab_anterior LIMIT 1").fetchone() is not None
+        return self._base_anterior_cache
 
     def _lote_empresas(self, imp_id: int, lote: list[list[str]]) -> Contagem:
         c = Contagem()
@@ -523,7 +584,15 @@ class Importador:
 
     def _limpar_mei(self, imp_id: int) -> None:
         """Remove estabelecimentos de MEIs ativos que só casaram com CNAEs marcados excluir_mei."""
+        alvo = ("SELECT e.cnpj FROM estabelecimento e"
+                " JOIN simples s ON s.cnpj_basico = e.cnpj_basico"
+                " WHERE s.opcao_mei = 'S' AND s.data_exclusao_mei IS NULL"
+                " AND NOT EXISTS (SELECT 1 FROM estabelecimento_cnae ec"
+                "   JOIN filtro_cnae f ON f.cnae = ec.cnae AND f.ativo = 1 AND f.excluir_mei = 0"
+                "   WHERE ec.cnpj = e.cnpj)")
         with transacao(self.conn):
+            # Não contam como "novas": entram na passada 1 e saem aqui a cada importação.
+            self.conn.execute(f"DELETE FROM mudanca WHERE importacao_id = ? AND cnpj IN ({alvo})", (imp_id,))
             removidos = self.conn.execute(
                 "DELETE FROM estabelecimento WHERE cnpj IN ("
                 " SELECT e.cnpj FROM estabelecimento e"
@@ -545,7 +614,16 @@ class Importador:
 
     def _finalizar(self, imp_id: int) -> dict:
         with transacao(self.conn):
-            obsoletos = self.conn.execute("DELETE FROM estabelecimento WHERE importacao_id != ?", (imp_id,)).rowcount
+            if self._tem_base_anterior:
+                self.conn.execute(
+                    "INSERT INTO mudanca (importacao_id, cnpj, tipo, em) SELECT ?, cnpj, 'removida', ? "
+                    "FROM estabelecimento WHERE importacao_id != ? AND fora_da_base = 0", (imp_id, _agora(), imp_id))
+            # Estabelecimentos que viraram lead não são apagados: ficam marcados como fora da base.
+            self.conn.execute("UPDATE estabelecimento SET fora_da_base = 1 WHERE importacao_id != ? "
+                              "AND cnpj IN (SELECT cnpj FROM lead)", (imp_id,))
+            obsoletos = self.conn.execute("DELETE FROM estabelecimento WHERE importacao_id != ? AND fora_da_base = 0",
+                                          (imp_id,)).rowcount
+            self.conn.execute("DELETE FROM estab_anterior")
             self._remover_orfaos()
             from espaco_alarcon.domain.contatos import aplicar_optout
             anonimizados = aplicar_optout(self.conn)   # pedidos de exclusão sobrevivem à reimportação
@@ -561,6 +639,10 @@ class Importador:
                 "simples": q("SELECT COUNT(*) FROM simples"),
                 "obsoletos_removidos": obsoletos,
                 "socios_anonimizados_optout": anonimizados,
+                "mudancas": dict(self.conn.execute("SELECT tipo, COUNT(*) FROM mudanca WHERE importacao_id = ? "
+                                                   "GROUP BY tipo", (imp_id,)).fetchall()),
+                "leads_fora_da_base": self.conn.execute("SELECT COUNT(*) FROM estabelecimento WHERE fora_da_base = 1"
+                                                        ).fetchone()[0],
             }
             por_arquivo = self.conn.execute(
                 "SELECT SUM(linhas_lidas), SUM(linhas_invalidas), SUM(caracteres_trocados) "

@@ -123,6 +123,9 @@ def carregar_ficha(conn: sqlite3.Connection, cnpj: str) -> dict | None:
         e["brasilapi"] = dict(consulta) | {"resumo": resumo(json.loads(consulta["dados"]) if consulta["dados"] else None)}
     else:
         e["brasilapi"] = None
+    e["mudancas"] = [dict(r) | {"campos_lista": json.loads(r["campos"]) if r["campos"] else []} for r in conn.execute(
+        "SELECT m.tipo, m.campos, m.em, i.competencia FROM mudanca m JOIN receita_importacao i ON i.id = m.importacao_id "
+        "WHERE m.cnpj = ? ORDER BY m.id DESC LIMIT 5", (cnpj,))]
     e["referencia"] = conn.execute(
         "SELECT r.id, r.origem, r.decisao FROM referencia r WHERE r.status = 'confirmado' AND "
         "(r.cnpj_basico = ? OR substr(r.cnpj_informado, 1, 8) = ?) LIMIT 1",

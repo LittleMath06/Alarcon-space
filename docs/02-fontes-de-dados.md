@@ -7,6 +7,16 @@ verificada de verdade. Cada item abaixo diz **como** foi verificado.
 
 ### 1.1 Acesso
 
+> **Atualização de 23/10/2026 — verificado de verdade:** o servidor oficial passou a responder a este ambiente e a
+> Receita **mudou o formato de publicação**. O antigo diretório `…/dados/cnpj/dados_abertos_cnpj/` responde **HTTP 404**;
+> os arquivos agora ficam num **compartilhamento Nextcloud (SERPRO+)**:
+> `https://arquivos.receitafederal.gov.br/index.php/s/YggdBLfdninEJX9` (a raiz do site redireciona para lá).
+> A listagem é lida pelo WebDAV público (`PROPFIND` em `/public.php/webdav/`, com o token do link como usuário):
+> resposta **207**, pastas mensais de 2025-12 a **2026-10** (e um `cnpj.tar.gz`), os mesmos 37 ZIPs por competência,
+> com tamanho na listagem; download aceita retomada (**206**). A competência 2026-10 (arquivos de 13/10/2026) soma 7,8 GB.
+> O sistema passou a usar esse link como **padrão oficial** (migração `0011`) e continua aceitando o formato "Index of"
+> para espelhos. A tabela abaixo é o registro histórico da tentativa de 22/10/2026.
+
 | Endereço | Resultado em 22/10/2026 (deste ambiente de nuvem, fora do Brasil) |
 |---|---|
 | `https://arquivos.receitafederal.gov.br/dados/cnpj/dados_abertos_cnpj/` (oficial, padrão do sistema) | **Sem resposta**: o túnel abre e o servidor encerra a conexão sem responder. Mesmo comportamento com `servicodados.ibge.gov.br`. Típico de bloqueio de acesso vindo de fora do Brasil |

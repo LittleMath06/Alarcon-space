@@ -7,7 +7,35 @@
 
 {% if msg == "iniciada" %}<p class="aviso sucesso" role="status">Importação iniciada em segundo plano. Esta página se atualiza sozinha.</p>
 {% elif msg == "ja_rodando" %}<p class="aviso erro" role="alert">Já existe uma importação em andamento.</p>
-{% elif msg == "espelho_invalido" %}<p class="aviso erro" role="alert">Informe a URL do espelho começando com https://</p>{% endif %}
+{% elif msg == "espelho_invalido" %}<p class="aviso erro" role="alert">Informe a URL do espelho começando com https://</p>
+{% elif msg == "agenda_salva" %}<p class="aviso sucesso" role="status">Preferência de atualização automática salva.</p>
+{% elif msg == "tarefa_executada" %}<p class="aviso sucesso" role="status">Tarefa executada. Veja o resultado na agenda abaixo.</p>{% endif %}
+
+<section class="cartao" id="agenda">
+  <h2>Atualização automática</h2>
+  <form method="post" action="/fontes/agenda" class="linha-form"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
+    <input type="hidden" name="automatica" value="{{ '0' if automatica else '1' }}">
+    <p>{% if automatica %}<span class="etiqueta ok">ativada</span> O sistema confere a agenda a cada 10 minutos enquanto estiver aberto.
+       {% else %}<span class="etiqueta erro">desativada</span>{% endif %}
+      <button class="botao secundario pequeno">{{ "Desativar" if automatica else "Ativar" }}</button></p></form>
+  <div class="rolagem"><table class="tabela">
+    <thead><tr><th>Tarefa</th><th>Última execução</th><th>Resultado</th><th>Próxima</th><th></th></tr></thead>
+    <tbody>{% for t in agenda %}<tr><td><strong>{{ t.descricao }}</strong><br><span class="suave">a cada {{ t.intervalo_horas // 24 }} dia(s)</span></td>
+      <td>{{ (t.ultima_execucao or "nunca")[:16] | replace("T", " ") }}</td>
+      <td>{% if t.ultimo_status %}<span class="etiqueta {{ 'ok' if t.ultimo_status in ('ok', 'nada_a_fazer', 'iniciada') else 'erro' }}">{{ t.ultimo_status | replace("_", " ") }}</span><br>{% endif %}<span class="suave">{{ t.ultimo_resultado or "" }}</span></td>
+      <td>{{ (t.proxima_execucao or "ao iniciar o sistema")[:16] | replace("T", " ") }}</td>
+      <td><form method="post" action="/fontes/agenda/{{ t.tarefa }}/executar"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><button class="botao secundario pequeno">Executar agora</button></form></td></tr>{% endfor %}</tbody>
+  </table></div>
+  <p class="dica">Horários em UTC. Se o computador estiver desligado no horário previsto, a tarefa roda cerca de 2 minutos depois que o sistema for aberto.
+    A primeira importação da base é sempre manual.</p>
+  {% if novidades %}
+  <h3>Novidades da última atualização</h3>
+  <p><a href="/busca?novidade=nova">{{ novidades.get("nova", 0) | milhar }} empresas novas</a> ·
+     <a href="/busca?novidade=alterada">{{ novidades.get("alterada", 0) | milhar }} com dados alterados</a> ·
+     {{ novidades.get("removida", 0) | milhar }} saíram da base (baixadas ou fora do filtro)
+     {% if leads_alterados %}· <a href="/leads"><strong>{{ leads_alterados }} lead(s) afetado(s)</strong></a>{% endif %}</p>
+  {% endif %}
+</section>
 
 <section class="cartao">
   <h2>Base da Receita Federal — Dados Abertos do CNPJ</h2>
@@ -87,7 +115,10 @@
 </section>
 
 <section class="cartao">
-  <h2>Outras fontes</h2>
-  <p class="vazio-texto">Consultas pontuais por CNPJ, sites das empresas e agendamento automático chegam nas Sprints 5 e 7.</p>
+  <h2>Todas as fontes</h2>
+  <table class="tabela"><thead><tr><th>Fonte</th><th>Última atualização</th><th>Situação</th></tr></thead><tbody>
+  {% for f in fontes_status %}<tr><td>{{ f.fonte }}</td><td>{{ (f.ultima or "")[:16] | replace("T", " ") or "—" }}</td><td>{{ f.resultado }}</td></tr>{% endfor %}
+  </tbody></table>
+  <p class="dica">Consultas e atualizações dependem de internet; a consulta e a organização dos dados já importados funcionam sem internet.</p>
 </section>
 {% endblock %}

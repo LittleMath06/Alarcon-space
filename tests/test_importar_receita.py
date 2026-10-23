@@ -121,3 +121,14 @@ def test_ler_zip_bytes_invalidos(tmp_path):
     linhas = list(ler_zip(tmp_path / "x.zip"))
     assert linhas == [["1", "A�B"], ["2", "C"]]
     assert list(ler_zip(tmp_path / "x.zip", pular=1)) == [["2", "C"]]
+
+
+def test_link_de_compartilhamento_nextcloud():
+    from espaco_alarcon.connectors import receita
+    raiz, auth = receita.compartilhamento("https://arquivos.receitafederal.gov.br/index.php/s/AbC123")
+    assert raiz == "https://arquivos.receitafederal.gov.br/public.php/webdav/"
+    assert auth == {"Authorization": "Basic QWJDMTIzOg=="}             # "AbC123:" em base64
+    assert receita.url_pasta("https://arquivos.receitafederal.gov.br/index.php/s/AbC123", "2026-10") == \
+        "https://arquivos.receitafederal.gov.br/public.php/webdav/2026-10/"
+    assert receita.compartilhamento("https://espelho.invalid/arquivos/") is None
+    assert receita.url_pasta("https://espelho.invalid/arquivos", "2026-09-14") == "https://espelho.invalid/arquivos/2026-09-14/"

@@ -71,9 +71,13 @@ def executar(cfg: Config) -> int:
     cfg.runtime_file.write_text(json.dumps({"pid": os.getpid(), "porta": cfg.porta, "host": host,
                                             "token_encerrar": token}), encoding="utf-8")
     log.info("servidor iniciado em %s:%s", host, cfg.porta)
+    from espaco_alarcon.jobs.agenda import Worker
+    worker = Worker(cfg)
+    worker.start()
     try:
         servidor.run()
     finally:
+        worker.parar.set()
         try:
             cfg.runtime_file.unlink()
         except FileNotFoundError:

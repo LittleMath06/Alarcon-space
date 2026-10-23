@@ -27,7 +27,8 @@
     <td>{% if not l.descartado %}<form method="post" action="/leads/{{ l.id }}/favorito"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}"><input type="hidden" name="valor" value="{{ '0' if l.favorito else '1' }}">
       <button class="estrela {{ 'marcada' if l.favorito }}" title="{{ 'Desfavoritar' if l.favorito else 'Favoritar' }}">★</button></form>{% endif %}</td>
     <td><a href="/empresa/{{ l.cnpj }}"><strong>{{ l.razao_social }}</strong></a><br><span class="suave">{{ l.cnpj_formatado }} · {{ l.municipio or "" }}/{{ l.uf }}{% if l.n_notas %} · {{ l.n_notas }} nota(s){% endif %}</span>
-      {% if l.descartado %}<br><span class="texto-erro">Descartado: {{ l.motivo_descarte }}</span>{% endif %}</td>
+      {% if l.descartado %}<br><span class="texto-erro">Descartado: {{ l.motivo_descarte }}</span>{% endif %}
+      {% if l.fora_da_base %}<br><span class="etiqueta erro">fora da base atual</span>{% elif l.mudanca == "alterada" %}<br><span class="etiqueta andamento">dados alterados na última atualização</span>{% endif %}</td>
     <td>{% if l.descartado %}{{ l.etapa_nome }}{% else %}
       <form method="post" action="/leads/{{ l.id }}/etapa" class="inline-auto"><input type="hidden" name="csrf_token" value="{{ sessao.csrf_token }}">
         <select name="etapa_id" data-enviar-ao-mudar>{% for e in etapas %}<option value="{{ e.id }}" {{ "selected" if e.id == l.etapa_id }}>{{ e.nome }}</option>{% endfor %}</select>

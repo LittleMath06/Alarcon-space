@@ -18,6 +18,11 @@
   "optout_ok": ("sucesso", "Dados da pessoa removidos. O pedido será reaplicado nas próximas importações."),
 } %}
 {% if msg in mensagens %}<p class="aviso {{ mensagens[msg][0] }}" role="{{ 'alert' if mensagens[msg][0] == 'erro' else 'status' }}">{{ mensagens[msg][1] }}</p>{% endif %}
+{% if e.fora_da_base %}<p class="aviso erro"><strong>Fora da base atual:</strong> este estabelecimento não veio na última importação da Receita
+  (baixado, inativo ou fora do filtro). Os dados abaixo são da última vez em que apareceu. Ele foi mantido porque é um lead.</p>{% endif %}
+{% if e.mudancas %}<p class="aviso info">{% for m in e.mudancas[:2] %}{% if m.tipo == "nova" %}Empresa nova na competência {{ m.competencia }}.
+  {% elif m.tipo == "alterada" %}Dados alterados na competência {{ m.competencia }}: {{ m.campos_lista | join(", ") }}.
+  {% elif m.tipo == "removida" %}Saiu da base na competência {{ m.competencia }}.{% endif %} {% endfor %}</p>{% endif %}
 {% if e.nao_contatar %}<p class="aviso erro"><strong>Não contatar:</strong> esta empresa pediu para não ser contatada{% if e.nao_contatar.motivo %} ({{ e.nao_contatar.motivo }}){% endif %}.</p>{% endif %}
 {% if e.referencia %}<p class="aviso info">Empresa da <strong>lista de referência</strong> ({{ e.referencia.origem }}): já atendida ou cotada.
   Não aparece como lead novo. <a href="/importacao/revisar/{{ e.referencia.id }}">Ver conciliação</a></p>{% endif %}

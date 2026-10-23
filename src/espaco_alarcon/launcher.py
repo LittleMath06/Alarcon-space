@@ -131,9 +131,17 @@ def main(argv: list[str] | None = None) -> int:
         from espaco_alarcon.domain.indice import main as recalcular
 
         return recalcular(argv[1:])
+    if acao == "verificar-atualizacao":
+        from espaco_alarcon.jobs.agenda import main_verificar
+
+        return main_verificar(argv[1:])
+    if acao == "atualizar-contatos":
+        from espaco_alarcon.jobs.agenda import main_contatos
+
+        return main_contatos(argv[1:])
     if acao == "redefinir-senha":
         from espaco_alarcon.redefinir_senha import main as redefinir
 
         return redefinir()
-    print("Uso: espaco-alarcon [iniciar|encerrar|servidor|importar-receita|recalcular-indice|redefinir-senha]", file=sys.stderr)
+    print("Uso: espaco-alarcon [iniciar|encerrar|servidor|importar-receita|recalcular-indice|verificar-atualizacao|atualizar-contatos|redefinir-senha]", file=sys.stderr)
     return 2

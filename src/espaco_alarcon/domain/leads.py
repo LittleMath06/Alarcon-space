@@ -139,7 +139,9 @@ def listar(conn: sqlite3.Connection, etapa_id: int | None = None, filtro: str = 
         params.append(etapa_id)
     return [dict(r) for r in conn.execute(
         "SELECT l.*, et.nome AS etapa_nome, et.cliente, p.razao_social, s.nome_fantasia, s.uf, m.descricao AS municipio, "
-        "i.score, i.linha_produto, (SELECT COUNT(*) FROM nota n WHERE n.lead_id = l.id) AS n_notas "
+        "i.score, i.linha_produto, s.fora_da_base, (SELECT COUNT(*) FROM nota n WHERE n.lead_id = l.id) AS n_notas, "
+        "(SELECT m.tipo FROM mudanca m WHERE m.cnpj = l.cnpj AND m.importacao_id = (SELECT MAX(id) FROM "
+        " receita_importacao WHERE status = 'concluida')) AS mudanca "
         "FROM lead l JOIN etapa et ON et.id = l.etapa_id LEFT JOIN estabelecimento s ON s.cnpj = l.cnpj "
         "LEFT JOIN empresa p ON p.cnpj_basico = l.cnpj_basico LEFT JOIN municipio m ON m.codigo = s.municipio "
         "LEFT JOIN indice i ON i.cnpj = l.cnpj "
