@@ -120,3 +120,45 @@ Get-PSDrive C | Select-Object Used, Free
 - **CNAEs do estabelecimento:** gravados todos (principal + secundários) em `estabelecimento_cnae`, não só os do filtro —
   servem ao perfil ideal e ao índice (Sprint 4).
 - **Sócios** são recarregados por completo a cada competência (não têm chave natural estável).
+
+## 9. Visão atual (até a Sprint 8)
+
+```
+src/espaco_alarcon/
+  config.py            DATA_DIR e porta          rede.py      IPs locais / modo LAN
+  launcher.py          iniciar | encerrar | servidor | importar-receita | recalcular-indice |
+                       verificar-atualizacao | atualizar-contatos | backup | restaurar | redefinir-senha
+  server.py            Uvicorn + worker da agenda + trava de instância
+  auth/                Argon2, sessões, bloqueio          audit.py   auditoria + log com rotação
+  db/                  conexão WAL + migrações 0001–0012
+  connectors/          receita (Nextcloud/WebDAV e "Index of"), brasilapi, site (robots.txt, anti-SSRF)
+  domain/              busca, empresas, referencia, indice, contatos, leads, painel, exportar, backup
+  jobs/                importar_receita (2 passadas, retomada, mudanças), agenda, processos
+  web/                 app (segurança, erros) + rotas_busca, rotas_importacao, rotas_config,
+                       rotas_ficha, rotas_leads; templates Jinja2; static (CSS, JS do copiar)
+packaging/             PyInstaller (--onedir) e Inno Setup        scripts/   PowerShell + varredura pré-commit
+```
+
+### Modelo de dados (principais tabelas)
+
+| Grupo | Tabelas |
+|---|---|
+| Acesso | usuario, sessao, auditoria, configuracao |
+| Receita | receita_importacao, receita_arquivo, receita_basico_aprovado, empresa, estabelecimento (CNPJ texto, assinatura, fora_da_base), estabelecimento_cnae, simples, socio, auxiliares (cnae, municipio, natureza_juridica, qualificacao, pais, motivo_situacao), mudanca |
+| Perfil | segmento, segmento_cnae, filtro_cnae, visão empresa_segmento (N:N com CNAE de origem), indice, indice_execucao, busca_fts (FTS5) |
+| Referência | referencia_arquivo, referencia, referencia_candidato, referencia_rejeitada, visão referencia_empresa |
+| Contatos/fiscal/LGPD | contato, site_empresa, consulta_cnpj, info_fiscal, ie_link, nao_contatar, optout_pessoa |
+| Leads | etapa, lead, nota, lead_historico |
+| Operação | agenda |
+
+### Decisões das Sprints 3–8 (resumo)
+
+- Conciliação por índice textual + nota com penalidade de "marca"; decisões manuais persistem por nome normalizado.
+- Índice pré-calculado por estabelecimento (com UF copiada) para ordenar 1,6 milhão de linhas em < 1 s.
+- Coleta em sites só no domínio da empresa, com robots.txt conservador e bloqueio de endereços internos.
+- Opt-out guardado só como hash e reaplicado a cada importação.
+- Mudanças detectadas por assinatura dos campos acompanhados; leads nunca são apagados (ficam "fora da base").
+- Worker da agenda dentro do servidor (sem dependência do Agendador do Windows); tarefa atrasada roda ao iniciar.
+- Fonte oficial lida via WebDAV do compartilhamento Nextcloud da Receita (formato vigente desde 2026).
+- Backup pela API de backup do SQLite (consistente com o sistema aberto); restauração e modo LAN só a partir do próprio PC.
+- Dependências fixadas e auditadas com `pip-audit` (nenhuma vulnerabilidade conhecida em 23/10/2026).

@@ -2,7 +2,8 @@
 
 Sistema local (Windows) de prospecção B2B de empresas com potencial para os fios e cabos elétricos especiais da Condvolt.
 
-**Estado atual:** Sprint 2a concluída — base da Receita importada em duas passadas (1,64 milhão de estabelecimentos).
+**Estado atual:** Sprints 0–7 concluídas; Sprint 8 pronta no que não depende do Windows (falta o roteiro de testes no
+Windows: `docs/09-roteiro-testes-windows.md`); Sprint 9 em andamento. Documentação completa em [`docs/`](docs/README.md).
 
 ## Desenvolvimento no Windows
 
@@ -22,6 +23,6 @@ Coloque a lista de clientes já atendidos em `.\data\import\clientes-ja-atendido
 
 ## Documentação
 
-- [Relatório da Sprint 2a](docs/relatorios/sprint-2a.md) · [Sprint 1](docs/relatorios/sprint-1.md) · [Sprint 0](docs/00-relatorio-sprint-0.md)
+- **[Índice da documentação](docs/README.md)** · [Guia do Paulo](docs/guia-do-paulo.md) · [Relatórios das sprints](docs/relatorios/) · [Sprint 0](docs/00-relatorio-sprint-0.md)
 - [Requisitos](docs/01-requisitos.md) · [Fontes de dados](docs/02-fontes-de-dados.md) · [Arquitetura](docs/03-arquitetura.md)
 - [Riscos](docs/04-riscos.md) · [CNAEs e segmentos](docs/05-cnaes-e-segmentos.md) · [Lista de referência](docs/06-lista-de-referencia.md)
